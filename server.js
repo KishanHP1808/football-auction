@@ -72,7 +72,7 @@ async function sendSquadEmail(managerName, managerEmail, squad, budgetLeft) {
   try {
     let transporter;
     
-    // Check for SMTP environment variables, otherwise fallback to Ethereal
+    // Check for SMTP environment variables, otherwise skip sending email
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
       transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -84,16 +84,8 @@ async function sendSquadEmail(managerName, managerEmail, squad, budgetLeft) {
         }
       });
     } else {
-      const testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass
-        }
-      });
+      console.log(`[Email] SMTP not configured. Skipped sending squad email to ${managerName} (${managerEmail})`);
+      return { success: true, previewUrl: null };
     }
 
     const squadHtml = squad.map(p => {
@@ -204,16 +196,8 @@ async function sendAdminNotification(subject, htmlContent) {
         }
       });
     } else {
-      const testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass
-        }
-      });
+      console.log(`[Admin Notification] SMTP not configured. Log: ${subject}`);
+      return;
     }
 
     const mailOptions = {
