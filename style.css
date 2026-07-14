@@ -964,6 +964,10 @@ main {
   gap: 2rem;
 }
 
+.db-layout.no-admin {
+  grid-template-columns: 1fr;
+}
+
 @media (max-width: 900px) {
   .db-layout {
     grid-template-columns: 1fr;

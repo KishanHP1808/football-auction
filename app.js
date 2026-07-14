@@ -1199,6 +1199,22 @@ function renderDatabase() {
   const count = $('#db-count');
   if (!tbody || !count) return;
 
+  // Toggle database modification panel based on admin privileges
+  const addPanel = $('#db-add-panel');
+  const dbLayout = $('.db-layout');
+  const isAdmin = currentUser && (currentUser.toLowerCase() === 'kishanhp1808' || currentEmail.toLowerCase() === 'kishanhp18@gmail.com');
+  
+  if (addPanel) {
+    addPanel.style.display = isAdmin ? 'block' : 'none';
+  }
+  if (dbLayout) {
+    if (isAdmin) {
+      dbLayout.classList.remove('no-admin');
+    } else {
+      dbLayout.classList.add('no-admin');
+    }
+  }
+
   const posFilter = $('#db-filter-pos').value;
   const searchStr = $('#db-search').value.toLowerCase();
 
@@ -1238,6 +1254,12 @@ $('#db-filter-pos')?.addEventListener('change', renderDatabase);
 $('#db-search')?.addEventListener('input', renderDatabase);
 
 function addCustomPlayer() {
+  const isAdmin = currentUser && (currentUser.toLowerCase() === 'kishanhp1808' || currentEmail.toLowerCase() === 'kishanhp18@gmail.com');
+  if (!isAdmin) {
+    showToast("⚠️ Only the administrator can add players.");
+    return;
+  }
+
   const name = $('#add-name').value.trim();
   const position = $('#add-position').value;
   const club = $('#add-club').value.trim();
@@ -1268,6 +1290,11 @@ function addCustomPlayer() {
 }
 
 function resetDatabase() {
+  const isAdmin = currentUser && (currentUser.toLowerCase() === 'kishanhp1808' || currentEmail.toLowerCase() === 'kishanhp18@gmail.com');
+  if (!isAdmin) {
+    showToast("⚠️ Only the administrator can reset the database.");
+    return;
+  }
   showToast("Resetting to default data...");
   location.reload();
 }
