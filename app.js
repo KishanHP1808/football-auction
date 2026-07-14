@@ -260,6 +260,25 @@ function toggleSound() {
   if (btn) btn.textContent = soundEnabled ? '🔊' : '🔇';
 }
 
+// Mobile hamburger nav toggle
+function toggleMobileNav() {
+  const nav = document.getElementById('main-nav');
+  const btn = document.getElementById('hamburger-btn');
+  if (nav && btn) {
+    nav.classList.toggle('open');
+    btn.classList.toggle('active');
+  }
+}
+
+function closeMobileNav() {
+  const nav = document.getElementById('main-nav');
+  const btn = document.getElementById('hamburger-btn');
+  if (nav && btn) {
+    nav.classList.remove('open');
+    btn.classList.remove('active');
+  }
+}
+
 // ──────────────── UTILITY HELPERS ────────────────
 function $(sel) { return document.querySelector(sel); }
 function $$(sel) { return document.querySelectorAll(sel); }
@@ -282,6 +301,12 @@ function switchView(viewId) {
   $$('.nav-btn').forEach(b => b.classList.remove('active'));
   const navBtn = $(`.nav-btn[data-view="${viewId}"]`);
   if (navBtn) navBtn.classList.add('active');
+
+  // Close mobile nav when switching views
+  closeMobileNav();
+  
+  // Scroll to top on view change for mobile
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ──────────────── SOCKET LISTENERS ────────────────

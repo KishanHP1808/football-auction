@@ -48,7 +48,14 @@
         <div class="logo-icon">⚽🏆</div>
         <h1 class="logo-text"><span>Football</span> Auction</h1>
       </div>
-      <nav style="display:flex; align-items:center; gap:0.75rem;">
+      <div class="header-right">
+        <span id="user-profile" class="user-profile-badge">👤 Guest</span>
+        <button class="sound-toggle-btn" id="sound-btn" onclick="toggleSound()" title="Toggle Sound">🔊</button>
+        <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileNav()" aria-label="Toggle menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+      <nav id="main-nav" class="main-nav">
         <button class="nav-btn active" data-view="lobby-view" id="nav-lobby">Lobby</button>
         <button class="nav-btn" data-view="auction-view" disabled id="nav-auction">Live Auction</button>
         <button class="nav-btn" data-view="squad-view" disabled id="nav-squad">My Squad</button>
@@ -56,8 +63,6 @@
         <button class="nav-btn" data-view="tracker-view" disabled id="nav-tracker">Live Tracker</button>
         <button class="nav-btn" data-view="history-view" id="nav-history">Draft History</button>
         <button class="nav-btn" data-view="summary-view" disabled id="nav-summary">Summary</button>
-        <span id="user-profile" style="color:var(--primary-neon); font-family:var(--font-display); font-weight:bold; font-size:0.85rem; padding:0.5rem 0.75rem; border:1px solid rgba(0, 242, 254, 0.2); border-radius:8px; background:rgba(0, 242, 254, 0.04); display:flex; align-items:center; gap:0.25rem;">👤 Guest</span>
-        <button class="sound-toggle-btn" id="sound-btn" onclick="toggleSound()" title="Toggle Sound">🔊</button>
       </nav>
     </header>
 

@@ -1206,3 +1206,649 @@ table.db-table tr:hover {
   display: block;
   margin: 0 auto;
 }
+
+/* ═══════════════════════════════════════════
+   MOBILE RESPONSIVE STYLES
+   ═══════════════════════════════════════════ */
+
+/* --- Header & Navigation --- */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.user-profile-badge {
+  color: var(--primary-neon);
+  font-family: var(--font-display);
+  font-weight: bold;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(0, 242, 254, 0.2);
+  border-radius: 8px;
+  background: rgba(0, 242, 254, 0.04);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Hamburger button - hidden on desktop */
+.hamburger-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  padding: 8px;
+  transition: all 0.3s ease;
+}
+
+.hamburger-btn span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--text-secondary);
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.hamburger-btn:hover {
+  border-color: var(--primary-neon);
+}
+
+.hamburger-btn:hover span {
+  background: var(--primary-neon);
+}
+
+.hamburger-btn.active span:nth-child(1) {
+  transform: rotate(45deg) translate(5px, 5px);
+}
+
+.hamburger-btn.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger-btn.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(5px, -5px);
+}
+
+/* ═══════════ TABLET (≤ 1024px) ═══════════ */
+@media (max-width: 1024px) {
+  header {
+    padding: 1rem 1.25rem;
+  }
+  
+  main {
+    padding: 1.25rem;
+  }
+  
+  .panel {
+    padding: 1.25rem;
+  }
+}
+
+/* ═══════════ MOBILE (≤ 768px) ═══════════ */
+@media (max-width: 768px) {
+  /* Header: compact, hamburger visible */
+  header {
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .logo-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 1.2rem;
+    border-radius: 10px;
+  }
+  
+  .logo-text {
+    font-size: 1.15rem;
+  }
+  
+  .hamburger-btn {
+    display: flex;
+  }
+  
+  .user-profile-badge {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  /* Mobile nav: full-width dropdown below header */
+  .main-nav {
+    display: none;
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.75rem 0 0 0;
+    border-top: 1px solid var(--glass-border);
+    margin-top: 0.5rem;
+  }
+  
+  .main-nav.open {
+    display: flex;
+  }
+  
+  .nav-btn {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.75rem;
+    flex: 1;
+    min-width: calc(33% - 0.3rem);
+    text-align: center;
+    white-space: nowrap;
+  }
+  
+  /* Main content */
+  main {
+    padding: 0.75rem;
+  }
+  
+  .panel {
+    padding: 1rem;
+    border-radius: 12px;
+  }
+  
+  /* Login overlay */
+  #login-overlay > .panel {
+    padding: 1.5rem !important;
+    max-width: 92vw !important;
+    margin: 0 1rem;
+  }
+  
+  /* ── LOBBY VIEW ── */
+  .lobby-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  #lobby-choice-container {
+    padding: 2rem 0.75rem !important;
+    gap: 1rem !important;
+  }
+  
+  #lobby-choice-container h2 {
+    font-size: 1.4rem !important;
+  }
+  
+  #lobby-choice-container > div {
+    flex-direction: column !important;
+  }
+  
+  #lobby-choice-container .btn-primary,
+  #lobby-choice-container .btn-secondary {
+    min-width: unset !important;
+    padding: 1rem !important;
+    font-size: 1rem !important;
+  }
+  
+  #lobby-room-details .panel:first-child {
+    flex-direction: column !important;
+    text-align: center;
+    gap: 0.75rem !important;
+    padding: 1rem !important;
+  }
+  
+  #room-code-display {
+    font-size: 1.1rem !important;
+  }
+  
+  /* ── LIVE AUCTION VIEW ── */
+  .arena-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    min-height: auto;
+  }
+  
+  /* Reorder: player card first, then bidding, then managers, then log */
+  .arena-center {
+    order: 1;
+  }
+  
+  .manager-list-panel {
+    order: 2;
+  }
+  
+  .arena-sidebar {
+    order: 3;
+  }
+  
+  /* Smaller player card on mobile */
+  .player-card {
+    width: 260px;
+    height: 370px;
+    padding: 1rem;
+    border-radius: 16px;
+  }
+  
+  .card-rating-badge {
+    top: 0.75rem;
+    left: 0.75rem;
+  }
+  
+  .card-rating-badge .num {
+    font-size: 2rem;
+  }
+  
+  .card-rating-badge .pos {
+    font-size: 0.75rem;
+  }
+  
+  .player-card .club-logo {
+    top: 0.75rem;
+    right: 0.75rem;
+    font-size: 0.75rem;
+    max-width: 80px;
+  }
+  
+  .player-photo-main {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .player-face-placeholder {
+    width: 100px;
+    height: 100px;
+    margin-top: 1.5rem;
+  }
+  
+  .player-card-info .name {
+    font-size: 1.2rem;
+  }
+  
+  .player-card-info .meta {
+    font-size: 0.78rem;
+  }
+  
+  .player-card-info .stats-grid {
+    font-size: 0.72rem;
+    gap: 0.4rem;
+    padding-top: 0.75rem;
+  }
+  
+  .card-price-tag {
+    font-size: 0.95rem;
+    padding: 0.6rem;
+  }
+  
+  .empty-card-placeholder {
+    width: 260px;
+    height: 370px;
+    padding: 1.5rem;
+  }
+  
+  /* Timer on mobile */
+  .timer-circle {
+    width: 65px;
+    height: 65px;
+    font-size: 1.8rem;
+  }
+  
+  /* Bidding controls */
+  .bidding-controls {
+    max-width: 100%;
+  }
+  
+  .bid-action-row {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4rem;
+  }
+  
+  .btn-bid-increment {
+    padding: 0.85rem 0.5rem;
+    font-size: 0.85rem;
+    min-height: 48px;
+  }
+  
+  .current-highest-panel {
+    font-size: 0.9rem;
+    padding: 0.6rem;
+  }
+  
+  /* Nomination panel */
+  #nomination-panel {
+    max-width: 100% !important;
+    padding: 1rem !important;
+  }
+  
+  /* Manager cards - horizontal scroll on mobile */
+  .manager-list-panel {
+    max-height: none;
+  }
+  
+  #manager-cards-area {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .manager-card {
+    min-width: 180px;
+    flex-shrink: 0;
+    padding: 0.75rem;
+  }
+  
+  .manager-card-name {
+    font-size: 0.85rem;
+  }
+  
+  .manager-stats {
+    font-size: 0.72rem;
+  }
+  
+  /* Log panel on mobile */
+  .log-panel {
+    max-height: 200px;
+  }
+  
+  .log-container {
+    font-size: 0.78rem;
+    gap: 0.5rem;
+  }
+  
+  .log-item {
+    padding: 0.4rem 0.6rem;
+  }
+  
+  /* ── SQUAD VIEW ── */
+  .squad-view-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .pitch-container {
+    aspect-ratio: 3 / 2;
+    border-width: 3px;
+    border-radius: 14px;
+  }
+  
+  .pitch-node {
+    width: 55px;
+  }
+  
+  .pitch-node-badge {
+    width: 36px;
+    height: 36px;
+    font-size: 0.7rem;
+  }
+  
+  .pitch-node-name {
+    font-size: 0.6rem;
+    padding: 0.1rem 0.2rem;
+  }
+  
+  .squad-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  
+  .squad-stat-box {
+    padding: 0.75rem;
+  }
+  
+  .squad-stat-box .val {
+    font-size: 1.2rem;
+  }
+  
+  .squad-list-scroll {
+    max-height: 250px;
+  }
+  
+  .squad-list-item {
+    font-size: 0.78rem;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .player-photo-squad {
+    width: 55px;
+    height: 55px;
+  }
+  
+  #squad-grid {
+    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+  
+  #squad-manager-select {
+    width: 160px !important;
+  }
+  
+  #formation-select {
+    font-size: 0.8rem !important;
+  }
+  
+  /* ── DATABASE VIEW ── */
+  .db-layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .db-table-container {
+    max-height: 450px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  table.db-table {
+    font-size: 0.75rem;
+    min-width: 550px;
+  }
+  
+  table.db-table th,
+  table.db-table td {
+    padding: 0.55rem 0.5rem;
+  }
+  
+  .db-filters {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  #db-filter-pos {
+    width: 100% !important;
+  }
+  
+  #db-search {
+    min-width: unset !important;
+  }
+  
+  .player-photo-db {
+    width: 32px;
+    height: 32px;
+  }
+  
+  /* ── TRACKER VIEW ── */
+  .summary-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  #tracker-feed {
+    height: 180px !important;
+  }
+  
+  /* ── HISTORY VIEW ── */
+  #history-view .panel {
+    max-height: 500px;
+  }
+  
+  /* ── SUMMARY VIEW ── */
+  .ranking-card {
+    gap: 0.75rem;
+    padding: 0.85rem;
+    flex-wrap: wrap;
+  }
+  
+  .ranking-rank {
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+  }
+  
+  .ranking-details .name {
+    font-size: 0.95rem;
+  }
+  
+  .ranking-details .sub {
+    font-size: 0.72rem;
+  }
+  
+  .ranking-stats .score {
+    font-size: 1.1rem;
+  }
+  
+  .sim-results {
+    max-height: 200px;
+    font-size: 0.78rem;
+  }
+  
+  .sim-match {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  /* ── TOAST on mobile ── */
+  .toast {
+    bottom: 1rem;
+    right: 1rem;
+    left: 1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* General touch improvements */
+  button, .btn-primary, .btn-secondary, .btn-bid-increment, .nav-btn {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Form inputs bigger touch targets */
+  .form-control, select {
+    padding: 0.85rem 1rem;
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+  
+  /* Scrollbar styling for mobile */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* ═══════════ SMALL PHONES (≤ 400px) ═══════════ */
+@media (max-width: 400px) {
+  header {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .logo-text {
+    font-size: 1rem;
+  }
+  
+  .logo-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 1rem;
+  }
+  
+  .user-profile-badge {
+    display: none;
+  }
+  
+  .nav-btn {
+    font-size: 0.68rem;
+    padding: 0.45rem 0.55rem;
+    min-width: calc(50% - 0.3rem);
+  }
+  
+  main {
+    padding: 0.5rem;
+  }
+  
+  .panel {
+    padding: 0.75rem;
+    border-radius: 10px;
+  }
+  
+  .player-card {
+    width: 230px;
+    height: 330px;
+    padding: 0.75rem;
+  }
+  
+  .empty-card-placeholder {
+    width: 230px;
+    height: 330px;
+  }
+  
+  .player-photo-main {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .card-rating-badge .num {
+    font-size: 1.6rem;
+  }
+  
+  .player-card-info .name {
+    font-size: 1rem;
+  }
+  
+  .timer-circle {
+    width: 55px;
+    height: 55px;
+    font-size: 1.5rem;
+  }
+  
+  .manager-card {
+    min-width: 155px;
+  }
+  
+  .pitch-node {
+    width: 45px;
+  }
+  
+  .pitch-node-badge {
+    width: 30px;
+    height: 30px;
+    font-size: 0.6rem;
+  }
+  
+  .pitch-node-name {
+    font-size: 0.55rem;
+  }
+  
+  table.db-table {
+    min-width: 480px;
+    font-size: 0.7rem;
+  }
+}
