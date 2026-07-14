@@ -789,7 +789,8 @@ const INITIAL_PLAYERS = [
     "rating": 100,
     "club": "Inter Miami",
     "nationality": "Argentina",
-    "basePrice": 20
+    "basePrice": 20,
+    "photo": "https://encrypted-tbn0.gstatic.com/licensed-image?q=tbn:ANd9GcQPMdFZPzsT1Uzxz9t2zAnkqlRv4hzPLNostaS7XDBPX2iMRHMkRnd-h-Jel6Vc01NAaGR_HWnEUs14TT5Q1SK_2PcDhwLRMbrF3Pq7TmQ9FOikvIL_Bpl4l6n3trwHqnRsbb5hnhQnt1qw&s=19"
   },
   {
     "id": "fw16",

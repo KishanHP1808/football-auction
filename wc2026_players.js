@@ -324,7 +324,8 @@ const WC2026_PLAYERS = [
     "rating": 86,
     "club": "Inter Miami CF (USA)",
     "nationality": "Argentina",
-    "basePrice": 22
+    "basePrice": 22,
+    "photo": "https://encrypted-tbn0.gstatic.com/licensed-image?q=tbn:ANd9GcQPMdFZPzsT1Uzxz9t2zAnkqlRv4hzPLNostaS7XDBPX2iMRHMkRnd-h-Jel6Vc01NAaGR_HWnEUs14TT5Q1SK_2PcDhwLRMbrF3Pq7TmQ9FOikvIL_Bpl4l6n3trwHqnRsbb5hnhQnt1qw&s=19"
   },
   {
     "id": "wc_arg_11",

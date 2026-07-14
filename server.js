@@ -519,9 +519,11 @@ async function nextPlayer(roomCode) {
     
     if (next) {
       try {
-        const photos = await searchDuckDuckGoImage(next.name + ' ' + next.club + ' football headshot');
-        if (photos && photos.length > 0) {
-          next.photo = photos[0].image;
+        if (!next.photo) {
+          const photos = await searchDuckDuckGoImage(next.name + ' ' + next.club + ' football headshot');
+          if (photos && photos.length > 0) {
+            next.photo = photos[0].image;
+          }
         }
       } catch (e) {
         console.log("Failed to fetch photo for auto-nominated player:", e.message);
@@ -746,9 +748,11 @@ io.on('connection', (socket) => {
     }
     
     try {
-      const photos = await searchDuckDuckGoImage(player.name + ' ' + player.club + ' football headshot');
-      if (photos && photos.length > 0) {
-        player.photo = photos[0].image;
+      if (!player.photo) {
+        const photos = await searchDuckDuckGoImage(player.name + ' ' + player.club + ' football headshot');
+        if (photos && photos.length > 0) {
+          player.photo = photos[0].image;
+        }
       }
     } catch (e) {
       console.log("Failed to fetch photo for nominated player:", e.message);
