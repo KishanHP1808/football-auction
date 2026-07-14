@@ -9,13 +9,24 @@ const nodemailer = require('nodemailer');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+
+// Strengthen Socket.IO configuration for high concurrency & low lag
+const io = new Server(server, {
+  cors: { origin: "*" },
+  pingInterval: 10000, // Faster ping interval to clean up dead links
+  pingTimeout: 5000,
+  cookie: false
+});
 
 app.use(express.json());
 app.use(express.static(__dirname));
 
 const USERS_FILE = path.join(__dirname, 'users.json');
 const HISTORY_FILE = path.join(__dirname, 'history.json');
+
+// --- Optimized In-Memory Database Cache ---
+let cachedUsers = null;
+let cachedHistory = null;
 
 function loadJSON(file) {
   if (!fs.existsSync(file)) {
@@ -29,8 +40,30 @@ function loadJSON(file) {
   }
 }
 
-function saveJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+function loadUsers() {
+  if (cachedUsers !== null) return cachedUsers;
+  cachedUsers = loadJSON(USERS_FILE);
+  return cachedUsers;
+}
+
+function saveUsers(users) {
+  cachedUsers = users;
+  fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), 'utf8', (err) => {
+    if (err) console.error("Error saving users asynchronously:", err.message);
+  });
+}
+
+function loadHistory() {
+  if (cachedHistory !== null) return cachedHistory;
+  cachedHistory = loadJSON(HISTORY_FILE);
+  return cachedHistory;
+}
+
+function saveHistory(history) {
+  cachedHistory = history;
+  fs.writeFile(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf8', (err) => {
+    if (err) console.error("Error saving history asynchronously:", err.message);
+  });
 }
 
 // Nodemailer dynamic email sender
@@ -205,12 +238,12 @@ async function sendAdminNotification(subject, htmlContent) {
 app.post('/api/register', (req, res) => {
   const { username, password, email } = req.body;
   if (!username || !password || !email) return res.status(400).json({ error: 'Username, password and email required' });
-  const users = loadJSON(USERS_FILE);
+  const users = loadUsers();
   if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
     return res.status(400).json({ error: 'Username already exists' });
   }
   users.push({ username, password, email });
-  saveJSON(USERS_FILE, users);
+  saveUsers(users);
 
   sendAdminNotification('📝 New User Registered', `
     <h3>New User Registration</h3>
@@ -225,7 +258,7 @@ app.post('/api/register', (req, res) => {
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
-  const users = loadJSON(USERS_FILE);
+  const users = loadUsers();
   const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
   if (!user) return res.status(400).json({ error: 'Invalid username or password' });
 
@@ -242,7 +275,7 @@ app.post('/api/login', (req, res) => {
 app.get('/api/history', (req, res) => {
   const username = req.query.username;
   if (!username) return res.status(400).json({ error: 'Username required' });
-  const history = loadJSON(HISTORY_FILE);
+  const history = loadHistory();
   const userHistory = history.filter(h => h.username && h.username.toLowerCase() === username.toLowerCase());
   res.json(userHistory);
 });
@@ -270,7 +303,8 @@ function createRoomState(roomCode) {
       enableManualNominations: false
     },
     messages: [],
-    timerInterval: null
+    timerInterval: null,
+    lastActivity: Date.now() // Track room activity
   };
 }
 
@@ -294,6 +328,7 @@ function addMessage(state, msg) {
 function broadcastState(roomCode) {
   const state = ROOMS.get(roomCode);
   if (state) {
+    state.lastActivity = Date.now(); // Keep room alive on update
     const broadcastPayload = { ...state };
     delete broadcastPayload.timerInterval;
     io.to(roomCode).emit('STATE_UPDATE', broadcastPayload);
@@ -356,7 +391,7 @@ function finalizeAuction(state, roomCode) {
   addMessage(state, "Auction Completed! Squads are locked.");
   
   try {
-    const history = loadJSON(HISTORY_FILE);
+    const history = loadHistory();
     
     // Compute total career points for each connected manager
     const managerRankings = state.users.map(u => {
@@ -444,7 +479,7 @@ function finalizeAuction(state, roomCode) {
       }
     });
 
-    saveJSON(HISTORY_FILE, history);
+    saveHistory(history);
   } catch (e) {
     console.error("Failed to finalize auction:", e.message);
   }
@@ -957,6 +992,19 @@ function runTournamentSimulation(users) {
   
   return { matches, table };
 }
+
+// Clean up idle/inactive rooms every 10 minutes to prevent memory leaks and support high concurrency (10+ simultaneous auctions)
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, state] of ROOMS.entries()) {
+    // If room has had no activity for more than 2 hours, clean it up
+    if (now - state.lastActivity > 2 * 60 * 60 * 1000) {
+      console.log(`[Cleaner] Room ${code} cleaned up due to inactivity.`);
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      ROOMS.delete(code);
+    }
+  }
+}, 10 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {

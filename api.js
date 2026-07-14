@@ -44,10 +44,18 @@ function calculateBasePrice(rating) {
   return Math.max(1, Math.round(rating / 15));
 }
 
+const IMAGE_CACHE = new Map();
+const PLAYER_CACHE = new Map();
+
 /**
- * Dynamic DuckDuckGo Image Scraper to fetch player headshots
+ * Dynamic DuckDuckGo Image Scraper to fetch player headshots (with caching)
  */
 async function searchDuckDuckGoImage(query) {
+  const cacheKey = (query || '').toLowerCase().trim();
+  if (IMAGE_CACHE.has(cacheKey)) {
+    return IMAGE_CACHE.get(cacheKey);
+  }
+
   try {
     const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     
@@ -89,11 +97,13 @@ async function searchDuckDuckGoImage(query) {
     const data = await searchRes.json();
     
     if (data && data.results && Array.isArray(data.results)) {
-      return data.results.map(r => ({
+      const results = data.results.map(r => ({
         title: r.title,
         image: r.image,
         thumbnail: r.thumbnail
       }));
+      IMAGE_CACHE.set(cacheKey, results);
+      return results;
     }
     
     return [];
@@ -104,11 +114,17 @@ async function searchDuckDuckGoImage(query) {
 }
 
 /**
- * Searches players across API-Football (if keys available) or local database.
+ * Searches players across API-Football (if keys available) or local database (with caching).
  */
 async function searchPlayers(query, apiKey = null, apiHost = 'v3.football.api-sports.io') {
   const normQuery = (query || '').toLowerCase().trim();
+  const cacheKey = `${normQuery}_${apiKey || ''}_${apiHost}`;
   
+  if (PLAYER_CACHE.has(cacheKey)) {
+    return PLAYER_CACHE.get(cacheKey);
+  }
+
+  let results = [];
   if (apiKey && apiKey.trim().length > 3) {
     try {
       const url = `https://${apiHost}/players?search=${encodeURIComponent(normQuery)}&season=2024`;
@@ -130,7 +146,7 @@ async function searchPlayers(query, apiKey = null, apiHost = 'v3.football.api-sp
       const data = await response.json();
       
       if (data && data.response && Array.isArray(data.response)) {
-        return data.response.map(item => {
+        results = data.response.map(item => {
           const p = item.player;
           const stats = item.statistics && item.statistics[0];
           
@@ -166,18 +182,23 @@ async function searchPlayers(query, apiKey = null, apiHost = 'v3.football.api-sp
     }
   }
 
-  // Fallback: Local database search
-  if (!normQuery) {
-    return [...LOCAL_DATABASE].sort(() => Math.random() - 0.5).slice(0, 50);
+  // Fallback to local DB if no API results found
+  if (results.length === 0) {
+    if (!normQuery) {
+      results = [...LOCAL_DATABASE].sort(() => Math.random() - 0.5).slice(0, 50);
+    } else {
+      results = LOCAL_DATABASE.filter(p => {
+        return (
+          p.name.toLowerCase().includes(normQuery) ||
+          p.club.toLowerCase().includes(normQuery) ||
+          p.nationality.toLowerCase().includes(normQuery)
+        );
+      }).slice(0, 50);
+    }
   }
 
-  return LOCAL_DATABASE.filter(p => {
-    return (
-      p.name.toLowerCase().includes(normQuery) ||
-      p.club.toLowerCase().includes(normQuery) ||
-      p.nationality.toLowerCase().includes(normQuery)
-    );
-  }).slice(0, 50);
+  PLAYER_CACHE.set(cacheKey, results);
+  return results;
 }
 
 module.exports = {
