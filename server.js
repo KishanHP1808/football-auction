@@ -305,7 +305,8 @@ function createRoomState(roomCode) {
     messages: [],
     timerInterval: null,
     lastActivity: Date.now(), // Track room activity
-    skipVotes: [] // Track users voting to skip the current player
+    skipVotes: [], // Track users voting to skip the current player
+    isPaused: false // Host pause status
   };
 }
 
@@ -342,6 +343,8 @@ function startTimer(roomCode) {
 
   clearInterval(state.timerInterval);
   state.timerInterval = setInterval(() => {
+    if (state.isPaused) return; // Do not decrement or tick if paused
+
     if (state.timer > 0) {
       state.timer--;
       io.to(roomCode).emit('TIMER_UPDATE', state.timer);
@@ -365,13 +368,13 @@ function handleSold(roomCode) {
       addMessage(state, `Sold! ${state.currentPlayer.name} goes to ${winner.name} for $${state.currentBid}M`);
     }
   } else {
-    addMessage(state, `Unsold. ${state.currentPlayer.name} received no bids.`);
+    addMessage(state, `Unsold! ${state.currentPlayer.name} received no bids.`);
   }
   broadcastState(roomCode);
 
   setTimeout(() => {
     nextPlayer(roomCode);
-  }, 3000);
+  }, 1000); // Snappy transitions: 3000ms -> 1000ms
 }
 
 function handleSkip(roomCode, reason = "skipped") {
@@ -386,7 +389,7 @@ function handleSkip(roomCode, reason = "skipped") {
 
   setTimeout(() => {
     nextPlayer(roomCode);
-  }, 3000);
+  }, 1000); // Snappy transitions: 3000ms -> 1000ms
 }
 
 function setNextNominator(state) {
@@ -863,6 +866,67 @@ io.on('connection', (socket) => {
       } else {
         broadcastState(code);
       }
+    }
+  });
+
+  socket.on('PAUSE_AUCTION', () => {
+    const code = socket.roomCode;
+    const state = ROOMS.get(code);
+    if (!state) return;
+
+    const user = state.users.find(u => u.id === socket.id);
+    if (user && user.isHost && state.phase === 'BIDDING') {
+      state.isPaused = !state.isPaused;
+      addMessage(state, state.isPaused ? "⏸️ Auction PAUSED by Host." : "▶️ Auction RESUMED by Host.");
+      broadcastState(code);
+    }
+  });
+
+  socket.on('END_AUCTION', () => {
+    const code = socket.roomCode;
+    const state = ROOMS.get(code);
+    if (!state) return;
+
+    const user = state.users.find(u => u.id === socket.id);
+    if (user && user.isHost) {
+      clearInterval(state.timerInterval);
+      finalizeAuction(state, code);
+    }
+  });
+
+  socket.on('LEAVE_ROOM', () => {
+    const code = socket.roomCode;
+    if (!code) return;
+
+    const state = ROOMS.get(code);
+    if (!state) return;
+
+    const user = state.users.find(u => u.id === socket.id);
+    
+    // Explicitly delete user from the list
+    state.users = state.users.filter(u => u.id !== socket.id);
+    socket.leave(code);
+    socket.roomCode = null;
+
+    if (user) {
+      addMessage(state, `🚪 Manager ${user.name} left the room.`);
+    }
+
+    if (state.users.length > 0 && !state.users.some(u => u.isHost && u.connected)) {
+      const firstActive = state.users.find(u => u.connected);
+      if (firstActive) {
+        state.users.forEach(u => u.isHost = false);
+        firstActive.isHost = true;
+      }
+    }
+
+    const anyConnected = state.users.some(u => u.connected);
+    if (!anyConnected || state.users.length === 0) {
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      ROOMS.delete(code);
+      console.log(`Room cleaned up: ${code}`);
+    } else {
+      broadcastState(code);
     }
   });
 

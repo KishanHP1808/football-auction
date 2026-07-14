@@ -365,6 +365,7 @@ socket.on('STATE_UPDATE', (state) => {
     $('#room-code-display').textContent = `ROOM CODE: ${state.roomCode}`;
     $('#lobby-choice-container').style.display = 'none';
     $('#lobby-join-panel').style.display = 'none';
+    if ($('#leave-room-btn')) $('#leave-room-btn').style.display = 'block';
     $('#lobby-room-details').style.display = 'block';
 
     const me = state.users.find(u => u.id === myId);
@@ -651,8 +652,23 @@ function renderAuction() {
           </button>
         `;
 
+        let hostControlsHtml = '';
+        if (isHost) {
+          hostControlsHtml = `
+            <div style="display:flex; gap:0.5rem; justify-content:center; margin-bottom:1rem; width:100%;">
+              <button class="btn-secondary" onclick="togglePauseAuction()" style="flex:1; border-color:var(--warning-neon); color:var(--warning-neon); font-size:0.8rem; padding: 0.5rem; font-weight:bold;">
+                ${globalState.isPaused ? '▶️ Resume' : '⏸️ Pause'}
+              </button>
+              <button class="btn-secondary" onclick="endAuctionInstantly()" style="flex:1; border-color:var(--danger-neon); color:var(--danger-neon); font-size:0.8rem; padding: 0.5rem; font-weight:bold;">
+                🛑 End Auction
+              </button>
+            </div>
+          `;
+        }
+
         controls.innerHTML = `
           <div style="text-align:center; margin-top:1rem; width:100%; max-width:520px;">
+            ${hostControlsHtml}
             <div class="current-highest-panel" style="margin-bottom:0.75rem; background: ${amIHighest ? 'rgba(0, 255, 135, 0.08)' : 'rgba(255,255,255,0.03)'}; border-color: ${amIHighest ? 'var(--success-neon)' : 'var(--glass-border)'}; color: ${amIHighest ? 'var(--success-neon)' : 'var(--text-secondary)'};">
               Current Bid: $${globalState.currentBid}M &bull; Winner: ${globalState.highestBidder ? globalState.users.find(u => u.id === globalState.highestBidder)?.name : 'None'}
             </div>
@@ -663,13 +679,22 @@ function renderAuction() {
           </div>
         `;
       } else if (globalState.phase === 'SOLD') {
-        const winnerName = globalState.highestBidder ? globalState.users.find(u => u.id === globalState.highestBidder)?.name : 'Nobody';
-        controls.innerHTML = `
-          <div style="text-align:center; margin-top:1rem;">
-            <h2 style="color:var(--success-neon)">SOLD for $${globalState.currentBid}M</h2>
-            <p>To: ${winnerName}</p>
-          </div>
-        `;
+        if (globalState.highestBidder) {
+          const winnerName = globalState.users.find(u => u.id === globalState.highestBidder)?.name || 'Nobody';
+          controls.innerHTML = `
+            <div style="text-align:center; margin-top:1rem;">
+              <h2 style="color:var(--success-neon)">SOLD for $${globalState.currentBid}M</h2>
+              <p>To: ${winnerName}</p>
+            </div>
+          `;
+        } else {
+          controls.innerHTML = `
+            <div style="text-align:center; margin-top:1rem;">
+              <h2 style="color:var(--danger-neon)">WENT UNSOLD</h2>
+              <p style="color:var(--text-secondary)">No bids were placed</p>
+            </div>
+          `;
+        }
       }
     }
   } else if (globalState.phase === 'FINISHED') {
@@ -760,6 +785,37 @@ function placeBid(increment = 5) {
 
 function voteSkipPlayer() {
   socket.emit('SKIP_PLAYER');
+}
+
+function togglePauseAuction() {
+  socket.emit('PAUSE_AUCTION');
+}
+
+function endAuctionInstantly() {
+  if (confirm("Are you sure you want to end the auction and finalize the squads now?")) {
+    socket.emit('END_AUCTION');
+  }
+}
+
+function leaveRoom() {
+  if (confirm("Are you sure you want to exit the current draft room?")) {
+    socket.emit('LEAVE_ROOM');
+    currentRoomCode = null;
+    isHost = false;
+    globalState = null;
+
+    // Reset navigation states
+    $('#nav-auction').disabled = true;
+    $('#nav-squad').disabled = true;
+    $('#nav-tracker').disabled = true;
+    $('#nav-summary').disabled = true;
+
+    if ($('#leave-room-btn')) $('#leave-room-btn').style.display = 'none';
+    $('#lobby-room-details').style.display = 'none';
+    $('#lobby-choice-container').style.display = 'flex';
+    switchView('lobby-view');
+    showToast("Exited active room.");
+  }
 }
 
 // ──────────────── NOMINATION LOGIC ────────────────

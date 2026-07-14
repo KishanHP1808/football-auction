@@ -1227,6 +1227,23 @@ table.db-table tr:hover {
   background: rgba(255, 0, 127, 0.05);
 }
 
+.leave-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 0, 127, 0.2);
+  color: var(--danger-neon);
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.leave-btn:hover {
+  border-color: var(--danger-neon);
+  background: rgba(255, 0, 127, 0.05);
+}
+
 /* ═══════════════════════════════════════════
    MOBILE RESPONSIVE STYLES
    ═══════════════════════════════════════════ */
