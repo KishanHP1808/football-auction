@@ -14,7 +14,7 @@
 
 <body>
   <!-- Sign In overlay -->
-  <div id="login-overlay" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(8,11,17,0.96); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(10px);">
+  <div id="login-overlay" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(8,11,17,0.98); z-index:9999; display:flex; align-items:center; justify-content:center;">
     <div class="panel" style="width:100%; max-width:400px; padding:2.5rem; text-align:center; box-shadow:0 0 40px rgba(0, 242, 254, 0.15);">
       <div style="font-size:2.5rem; margin-bottom:1rem;">⚽🏆</div>
       <h2 style="margin-bottom:0.5rem; color:var(--text-primary); font-size:1.8rem;">Football Auction</h2>
@@ -30,7 +30,7 @@
       </div>
       <div class="form-group" style="text-align:left; margin-bottom:1.5rem;">
         <label for="login-password">Password</label>
-        <input type="password" class="form-control" id="login-password" placeholder="Enter password">
+        <input type="password" class="form-control" id="login-password" placeholder="Enter password" onkeyup="if(event.key === 'Enter') handleLogin()">
       </div>
       
       <div id="login-error" style="color:var(--danger-neon); font-size:0.8rem; margin-bottom:1.25rem; text-align:left; display:none;"></div>

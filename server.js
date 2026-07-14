@@ -607,13 +607,26 @@ io.on('connection', (socket) => {
       <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
     `);
   });
-
   socket.on('JOIN_ROOM', (userData) => {
     const code = (userData.roomCode || '').toUpperCase();
     const state = ROOMS.get(code);
 
     if (!state) {
       socket.emit('ERROR', 'Invalid Room Code.');
+      return;
+    }
+
+    // Check if manager is reconnecting to an active session
+    const existingUser = state.users.find(u => u.name.toLowerCase() === (userData.name || '').toLowerCase());
+    if (existingUser) {
+      existingUser.id = socket.id;
+      existingUser.connected = true;
+      socket.roomCode = code;
+      socket.join(code);
+      socket.emit('JOINED', existingUser);
+      
+      addMessage(state, `⚡ Manager ${existingUser.name} reconnected.`);
+      broadcastState(code);
       return;
     }
 
@@ -640,7 +653,8 @@ io.on('connection', (socket) => {
       email: userData.email || '',
       budget: 0,
       squad: [],
-      isHost: isHost
+      isHost: isHost,
+      connected: true // track active connection status
     };
 
     socket.roomCode = code;
@@ -860,14 +874,31 @@ io.on('connection', (socket) => {
     const state = ROOMS.get(code);
     if (!state) return;
 
-    state.users = state.users.filter(u => u.id !== socket.id);
-    
-    if (state.users.length > 0 && !state.users.some(u => u.isHost)) {
-      state.users[0].isHost = true;
+    const user = state.users.find(u => u.id === socket.id);
+    if (user) {
+      user.connected = false;
     }
-    
-    if (state.users.length === 0) {
-      clearInterval(state.timerInterval);
+
+    if (state.phase === 'LOBBY') {
+      // In lobby, clean up the slot immediately
+      state.users = state.users.filter(u => u.id !== socket.id);
+    } else if (user) {
+      addMessage(state, `🔌 Manager ${user.name} disconnected.`);
+    }
+
+    // Re-assign host role if the current host disconnected
+    if (state.users.length > 0 && !state.users.some(u => u.isHost && u.connected)) {
+      const firstActive = state.users.find(u => u.connected);
+      if (firstActive) {
+        state.users.forEach(u => u.isHost = false);
+        firstActive.isHost = true;
+      }
+    }
+
+    // Only clean up the room if ALL users have disconnected
+    const anyConnected = state.users.some(u => u.connected);
+    if (!anyConnected) {
+      if (state.timerInterval) clearInterval(state.timerInterval);
       ROOMS.delete(code);
       console.log(`Room cleaned up: ${code}`);
     } else {

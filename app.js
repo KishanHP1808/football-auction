@@ -84,6 +84,9 @@ async function handleLogin() {
       $('#user-profile').innerHTML = `👤 ${currentUser}`;
       $('#manager-name').value = currentUser;
 
+      // Save credentials for auto login on same device
+      localStorage.setItem('auction_username', currentUser);
+      localStorage.setItem('auction_email', currentEmail);
 
       showToast(`Logged in as ${currentUser}`);
       loadDraftHistory();
@@ -304,7 +307,7 @@ function switchView(viewId) {
 
   // Close mobile nav when switching views
   closeMobileNav();
-  
+
   // Scroll to top on view change for mobile
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1366,4 +1369,17 @@ $$('.nav-btn').forEach(btn => {
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   initDatabase();
+
+  // Auto Sign In from device history
+  const savedUser = localStorage.getItem('auction_username');
+  const savedEmail = localStorage.getItem('auction_email');
+  if (savedUser) {
+    currentUser = savedUser;
+    currentEmail = savedEmail || '';
+    if ($('#login-overlay')) $('#login-overlay').style.display = 'none';
+    if ($('#user-profile')) $('#user-profile').innerHTML = `👤 ${currentUser}`;
+    if ($('#manager-name')) $('#manager-name').value = currentUser;
+    showToast(`Welcome back, ${currentUser}!`);
+    loadDraftHistory();
+  }
 });
