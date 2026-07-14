@@ -1,0 +1,34 @@
+[
+  {
+    "username": "testuser",
+    "timestamp": "2026-07-13T09:27:28.154Z",
+    "squad": [
+      {
+        "id": "wc_sou_15",
+        "name": "Iqraam Rayners",
+        "position": "FW",
+        "rating": 75,
+        "club": "Mamelodi Sundowns FC (RSA)",
+        "nationality": "South Africa",
+        "basePrice": 12.5,
+        "photo": "https://sundownsfc.co.za/wp-content/uploads/2025/09/Rayners-1.jpg",
+        "boughtFor": 12.5
+      },
+      {
+        "id": "wc_bra_23",
+        "name": "EDERSON",
+        "position": "GK",
+        "rating": 85,
+        "club": "Fenerbahçe SK (TUR)",
+        "nationality": "Brazil",
+        "basePrice": 29,
+        "photo": "https://i.ytimg.com/vi/21fxWtcDnlo/maxresdefault.jpg",
+        "boughtFor": 29
+      }
+    ],
+    "budgetLeft": 8.5,
+    "avgRating": 80,
+    "careerPoints": 1381,
+    "score": 1381
+  }
+]

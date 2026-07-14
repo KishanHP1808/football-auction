@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="Football Auction Simulator — Draft elite football players in a live real-time auction with AI bot opponents. Build your ultimate squad.">
+  <title>Football Auction — Draft Your Ultimate XI</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+</head>
+
+<body>
+  <!-- Sign In overlay -->
+  <div id="login-overlay" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(8,11,17,0.96); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(10px);">
+    <div class="panel" style="width:100%; max-width:400px; padding:2.5rem; text-align:center; box-shadow:0 0 40px rgba(0, 242, 254, 0.15);">
+      <div style="font-size:2.5rem; margin-bottom:1rem;">⚽🏆</div>
+      <h2 style="margin-bottom:0.5rem; color:var(--text-primary); font-size:1.8rem;">Football Auction</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:1.75rem;">Sign in to save and access your draft history.</p>
+      
+      <div class="form-group" style="text-align:left;">
+        <label for="login-username">Username</label>
+        <input type="text" class="form-control" id="login-username" placeholder="Enter username">
+      </div>
+      <div class="form-group" style="text-align:left;">
+        <label for="login-email">Email Address</label>
+        <input type="email" class="form-control" id="login-email" placeholder="Enter email (squad reports)">
+      </div>
+      <div class="form-group" style="text-align:left; margin-bottom:1.5rem;">
+        <label for="login-password">Password</label>
+        <input type="password" class="form-control" id="login-password" placeholder="Enter password">
+      </div>
+      
+      <div id="login-error" style="color:var(--danger-neon); font-size:0.8rem; margin-bottom:1.25rem; text-align:left; display:none;"></div>
+      
+      <button class="btn-primary" onclick="handleLogin()" style="margin-bottom:0.75rem;">Sign In</button>
+      <button class="btn-secondary" onclick="handleRegister()" style="width:100%;">Create Account</button>
+    </div>
+  </div>
+
+  <div id="app-container">
+
+    <!-- ═══════════ HEADER & NAV ═══════════ -->
+    <header>
+      <div class="logo">
+        <div class="logo-icon">⚽🏆</div>
+        <h1 class="logo-text"><span>Football</span> Auction</h1>
+      </div>
+      <nav style="display:flex; align-items:center; gap:0.75rem;">
+        <button class="nav-btn active" data-view="lobby-view" id="nav-lobby">Lobby</button>
+        <button class="nav-btn" data-view="auction-view" disabled id="nav-auction">Live Auction</button>
+        <button class="nav-btn" data-view="squad-view" disabled id="nav-squad">My Squad</button>
+        <button class="nav-btn" data-view="database-view" id="nav-database">Players DB</button>
+        <button class="nav-btn" data-view="tracker-view" disabled id="nav-tracker">Live Tracker</button>
+        <button class="nav-btn" data-view="history-view" id="nav-history">Draft History</button>
+        <button class="nav-btn" data-view="summary-view" disabled id="nav-summary">Summary</button>
+        <span id="user-profile" style="color:var(--primary-neon); font-family:var(--font-display); font-weight:bold; font-size:0.85rem; padding:0.5rem 0.75rem; border:1px solid rgba(0, 242, 254, 0.2); border-radius:8px; background:rgba(0, 242, 254, 0.04); display:flex; align-items:center; gap:0.25rem;">👤 Guest</span>
+        <button class="sound-toggle-btn" id="sound-btn" onclick="toggleSound()" title="Toggle Sound">🔊</button>
+      </nav>
+    </header>
+
+    <main>
+
+      <!-- ═══════════ LOBBY VIEW ═══════════ -->
+      <section id="lobby-view" class="view active-view">
+        
+        <!-- Lobby Choice Screen -->
+        <div id="lobby-choice-container" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 4rem 1rem; text-align:center; max-width:600px; margin:0 auto; gap:1.5rem;">
+          <h2 style="color:var(--text-primary); font-size:1.8rem; font-family:var(--font-display);">🏆 Football Draft Lobby</h2>
+          <p style="color:var(--text-secondary); font-size:0.95rem; max-width:480px; margin-bottom:1rem;">Start a private live auction tournament room and invite your friends, or join an active room code.</p>
+          <div style="display:flex; gap:1.25rem; width:100%; justify-content:center; flex-wrap:wrap;">
+            <button class="btn-primary" onclick="showCreateRoom()" style="flex:1; min-width:200px; padding:1.25rem; font-size:1.1rem; border-radius:12px;">🎨 Create Private Room</button>
+            <button class="btn-secondary" onclick="showJoinRoom()" style="flex:1; min-width:200px; padding:1.25rem; font-size:1.1rem; border-radius:12px;">🔑 Join Room Code</button>
+          </div>
+        </div>
+
+        <!-- Join Room Input Form -->
+        <div id="lobby-join-panel" class="panel" style="display:none; max-width:400px; margin: 0 auto; padding:2rem; text-align:center; margin-top:2rem;">
+          <h3 style="margin-bottom:1rem; color:var(--primary-neon);">Join Private Room</h3>
+          <div class="form-group" style="text-align:left; margin-bottom:1.5rem;">
+            <label for="join-room-code-input">Enter 4-Letter Code</label>
+            <input type="text" class="form-control" id="join-room-code-input" placeholder="ABCD" style="text-transform:uppercase; font-size:1.35rem; text-align:center; letter-spacing:4px; font-weight:bold;" maxlength="4">
+          </div>
+          <div id="join-room-error" style="color:var(--danger-neon); font-size:0.8rem; margin-bottom:1.25rem; text-align:left; display:none;"></div>
+          <button class="btn-primary" onclick="submitJoinRoom()" style="margin-bottom:0.75rem;">Join Room</button>
+          <button class="btn-secondary" onclick="backToLobbyChoices()" style="width:100%;">← Back</button>
+        </div>
+
+        <!-- Room setup / Lobby Room Info (Hidden initially) -->
+        <div id="lobby-room-details" style="display:none;">
+          <div class="panel" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; padding: 1rem 1.5rem; border-color: rgba(0, 242, 254, 0.3); background: rgba(0, 242, 254, 0.02); flex-wrap:wrap; gap:1rem;">
+            <div>
+              <span style="color:var(--text-secondary); font-size:0.8rem; text-transform:uppercase; display:block;">PRIVATE DRAFT ARENA</span>
+              <h2 style="color:var(--primary-neon); font-family:var(--font-display); letter-spacing: 1px;" id="room-code-display">ROOM CODE: ————</h2>
+            </div>
+            <button class="btn-secondary" onclick="copyRoomCode()" style="width:auto; padding: 0.5rem 1rem; font-size:0.8rem; margin:0;">📋 Copy Invite Code</button>
+          </div>
+
+          <div class="lobby-grid">
+            <div class="panel setup-form" id="lobby-setup-panel">
+              <h2>⚙️ Room Setup</h2>
+
+              <div class="form-group">
+                <label for="manager-name">Your Manager Name</label>
+                <input type="text" class="form-control" id="manager-name" placeholder="e.g. FC Barcelona" value="My Team" disabled>
+              </div>
+
+              <div class="form-group">
+                <label for="budget-input">Budget per Manager ($M)</label>
+                <input type="number" class="form-control" id="budget-input" value="300" min="50" max="1500">
+              </div>
+
+              <div class="form-group">
+                <label for="squad-size-input">Squad Size (Players per Team)</label>
+                <input type="number" class="form-control" id="squad-size-input" value="11" min="5" max="25">
+              </div>
+
+              <div class="form-group">
+                <label for="timer-input">Bid Timer (seconds)</label>
+                <input type="number" class="form-control" id="timer-input" value="15" min="5" max="30">
+              </div>
+
+              <div class="form-group" style="display:flex; align-items:center; gap: 0.5rem; margin-top: 1rem;">
+                <input type="checkbox" id="manual-nomination-input" style="width:auto; cursor:pointer;">
+                <label for="manual-nomination-input" style="margin-bottom:0; cursor:pointer;">Turn-Based Nominations (IPL Style)</label>
+              </div>
+
+              <h3 style="margin: 1.5rem 0 0.75rem 0; border-left:4px solid var(--secondary-neon); padding-left:0.75rem; font-size:1.1rem;">🌐 API Settings (Optional)</h3>
+              
+              <div class="form-group">
+                <label for="api-key-input">API-Football API Key</label>
+                <input type="password" class="form-control" id="api-key-input" placeholder="Enter RapidAPI or API-Sports Key">
+              </div>
+
+              <div class="form-group">
+                <label for="api-host-input">API Host Domain</label>
+                <select id="api-host-input" class="form-control">
+                  <option value="v3.football.api-sports.io" selected>API-Sports (v3.football.api-sports.io)</option>
+                  <option value="api-football-v1.p.rapidapi.com">RapidAPI (api-football-v1.p.rapidapi.com)</option>
+                </select>
+              </div>
+
+              <button class="btn-primary" onclick="startAuction()" id="start-btn">🚀 Start Auction</button>
+            </div>
+
+            <div class="panel lobby-summary">
+              <h2>📊 Preview</h2>
+              <div class="lobby-stat-card">
+                <span>Budget</span>
+                <span class="value" id="summary-budget">$300M</span>
+              </div>
+              <div class="lobby-stat-card">
+                <span>Squad Size</span>
+                <span class="value" id="summary-squad">11</span>
+              </div>
+              <div class="lobby-stat-card">
+                <span>Player Pool</span>
+                <span class="value" id="summary-pool">—</span>
+              </div>
+              <div
+                style="margin-top:auto;padding:1rem;background:rgba(0,242,254,0.03);border-radius:8px;border:1px dashed var(--glass-border)">
+                <h4 style="color:var(--primary-neon);margin-bottom:0.5rem">👥 Connected Players (<span
+                    id="connected-count">0</span>)</h4>
+                <ul id="connected-players-list"
+                  style="list-style:none;font-size:0.85rem;color:var(--text-secondary);display:flex;flex-direction:column;gap:0.4rem">
+                  <!-- Connected players appear here -->
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ LIVE AUCTION VIEW ═══════════ -->
+      <section id="auction-view" class="view">
+        <div class="arena-grid">
+
+          <!-- Left: Live Log -->
+          <div class="arena-sidebar">
+            <div class="panel log-panel">
+              <h3>📜 Live Log</h3>
+              <div class="log-container" id="log-container">
+                <!-- Log items appear here -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Center: Player Card + Timer + Bidding + Nomination Panel -->
+          <div class="arena-center">
+            
+            <div class="timer-container" id="timer-container" style="display:none;">
+              <div class="timer-circle" id="timer-circle">
+                <span id="timer-value">—</span>
+              </div>
+            </div>
+
+            <div id="nominated-card-area">
+              <div class="empty-card-placeholder">
+                <h3>Waiting for Auction</h3>
+                <p style="margin-top:0.5rem;color:var(--text-muted)">The first player will appear here when the auction starts.</p>
+              </div>
+            </div>
+
+            <!-- Turn-Based Nomination Panel -->
+            <div id="nomination-panel" class="panel" style="display:none; width: 100%; max-width: 480px; padding: 1.5rem;">
+              <h3 style="color:var(--primary-neon); margin-bottom: 0.5rem; text-align:center;">🗳️ Nominate a Player</h3>
+              <p style="font-size:0.8rem; color:var(--text-secondary); text-align:center; margin-bottom: 1rem;">Search the database to put a player up for bidding.</p>
+              
+              <div style="display:flex; gap: 0.5rem; margin-bottom: 1rem;">
+                <input type="text" id="nomination-search" class="form-control" placeholder="Search name, club, or country...">
+                <button class="btn-primary" onclick="searchNomination()" style="width: auto; padding: 0.5rem 1.5rem;">🔍</button>
+              </div>
+              
+              <div id="nomination-results" class="squad-list-scroll" style="height: 180px; max-height: 180px; border: 1px solid var(--glass-border); border-radius: 8px; padding: 0.5rem; background:rgba(0,0,0,0.2);">
+                <p style="text-align:center; color:var(--text-muted); margin-top: 60px; font-size:0.85rem;">Type a name to search</p>
+              </div>
+            </div>
+
+            <div id="bidding-controls-area">
+              <!-- Bid buttons rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Right: Manager Budgets -->
+          <div class="panel manager-list-panel">
+            <h3>👥 Managers</h3>
+            <div id="manager-cards-area">
+              <!-- Manager cards rendered dynamically -->
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ═══════════ SQUAD VIEW ═══════════ -->
+      <section id="squad-view" class="view">
+        <div style="margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+          <div style="display:flex; align-items:center; gap: 1rem;">
+            <h2>🏟️ Squad View</h2>
+            <select class="form-control" id="squad-manager-select" style="width:250px"></select>
+          </div>
+          
+          <div class="form-group" style="width:160px; margin-bottom:0; display: flex; align-items: center; gap: 0.5rem;">
+            <label for="formation-select" style="margin-bottom:0; font-size:0.8rem; white-space:nowrap;">📋 Formation</label>
+            <select id="formation-select" class="form-control" style="padding: 0.4rem 0.8rem; font-size:0.9rem;">
+              <option value="4-3-3" selected>4-3-3</option>
+              <option value="4-4-2">4-4-2</option>
+              <option value="3-5-2">3-5-2</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="squad-view-grid">
+          
+          <!-- Tactical Pitch Layout (Left Side) -->
+          <div class="panel" style="padding: 1.5rem; display: flex; flex-direction: column; align-items: center;">
+            <div class="pitch-container" id="pitch-container">
+              <div class="pitch-center-circle"></div>
+              <div class="pitch-center-line"></div>
+              <div class="pitch-box-left"></div>
+              <div class="pitch-box-right"></div>
+              <!-- Pitch Nodes for Players Rendered by JS -->
+              <div id="pitch-nodes"></div>
+            </div>
+            
+            <h4 style="margin: 1.5rem 0 0.5rem 0; width: 100%; text-align: left; color: var(--text-secondary);">Bench / Reserve Players</h4>
+            <div id="squad-grid"
+              style="display:grid;grid-template-columns:repeat(auto-fill, minmax(110px, 1fr));gap:0.75rem; width: 100%; min-height: 80px; padding: 0.5rem; background:rgba(0,0,0,0.15); border-radius:8px;">
+              <!-- Bench cards added by JS -->
+            </div>
+          </div>
+          
+          <!-- Squad Stats Dashboard (Right Side) -->
+          <div class="panel squad-summary-panel">
+            <h3>📈 Squad Stats</h3>
+            <div class="squad-stats-grid">
+              <div class="squad-stat-box">
+                <span class="val" id="squad-stat-players">0/11</span>
+                <span class="lbl">Players</span>
+              </div>
+              <div class="squad-stat-box">
+                <span class="val" id="squad-stat-budget">$300M</span>
+                <span class="lbl">Budget Left</span>
+              </div>
+              <div class="squad-stat-box">
+                <span class="val" id="squad-stat-rating">—</span>
+                <span class="lbl">Avg Rating</span>
+              </div>
+              <div class="squad-stat-box">
+                <span class="val" id="squad-stat-spent">$0M</span>
+                <span class="lbl">Spent</span>
+              </div>
+            </div>
+            
+            <h4 style="margin-top:1rem;color:var(--text-secondary)">Squad List</h4>
+            <div class="squad-list-scroll" id="squad-list">
+              <p style="color:var(--text-muted);padding:1rem;text-align:center">No players yet</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ DATABASE VIEW ═══════════ -->
+      <section id="database-view" class="view">
+        <div class="db-layout">
+          <!-- Sidebar: Add Player Form -->
+          <div class="panel">
+            <h3 style="margin-bottom:1.5rem;border-left:4px solid var(--success-neon);padding-left:0.75rem">➕ Add Player
+            </h3>
+
+            <div class="form-group">
+              <label for="add-name">Name *</label>
+              <input type="text" class="form-control" id="add-name" placeholder="e.g. Arda Güler">
+            </div>
+            <div class="form-group">
+              <label for="add-position">Position</label>
+              <select id="add-position" class="form-control">
+                <option value="GK">GK — Goalkeeper</option>
+                <option value="DF">DF — Defender</option>
+                <option value="MF" selected>MF — Midfielder</option>
+                <option value="FW">FW — Forward</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="add-club">Club</label>
+              <input type="text" class="form-control" id="add-club" placeholder="e.g. Real Madrid">
+            </div>
+            <div class="form-group">
+              <label for="add-nationality">Nationality</label>
+              <input type="text" class="form-control" id="add-nationality" placeholder="e.g. Turkey">
+            </div>
+            <div class="form-group">
+              <label for="add-rating">Rating (1–99)</label>
+              <input type="number" class="form-control" id="add-rating" placeholder="80" min="1" max="99">
+            </div>
+            <div class="form-group">
+              <label for="add-price">Base Price ($M)</label>
+              <input type="number" class="form-control" id="add-price" placeholder="20" min="1">
+            </div>
+
+            <button class="btn-primary" onclick="addCustomPlayer()">Add to Database</button>
+            <button class="btn-secondary" style="width:100%;margin-top:0.75rem" onclick="resetDatabase()">↺ Reset to
+              Defaults</button>
+          </div>
+
+          <!-- Main: Player Table -->
+          <div>
+            <div id="merge-status-banner"
+              style="display:none;background:rgba(0,255,135,0.08);border:1px solid var(--success-neon);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.875rem;color:var(--success-neon);">
+            </div>
+            <div class="db-filters" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center">
+              <select id="db-filter-pos" class="form-control" style="width:160px">
+                <option value="ALL">All Positions</option>
+                <option value="GK">GK — Goalkeeper</option>
+                <option value="DF">DF — Defender</option>
+                <option value="MF">MF — Midfielder</option>
+                <option value="FW">FW — Forward</option>
+              </select>
+              <input type="text" class="form-control" id="db-search" placeholder="Search name, club, country..."
+                style="flex:1;min-width:200px">
+              <span id="db-count" style="color:var(--text-secondary);font-size:0.9rem">— players</span>
+            </div>
+            <div class="db-table-container">
+              <table class="db-table">
+                <thead>
+                  <tr>
+                    <th>Photo</th>
+                    <th>Pos</th>
+                    <th>Name</th>
+                    <th>Club</th>
+                    <th>Nationality</th>
+                    <th>Rating</th>
+                    <th>Career Pts</th>
+                    <th>Base Price</th>
+                  </tr>
+                </thead>
+                <tbody id="db-tbody">
+                  <!-- Rows rendered by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ LIVE TRACKER VIEW ═══════════ -->
+      <section id="tracker-view" class="view">
+        <h2 style="margin-bottom:1.5rem">📡 Live Matchday Tracker</h2>
+        
+        <div class="panel" style="margin-bottom:1.5rem; padding: 1.25rem;">
+          <h3 style="color: var(--primary-neon); margin-bottom: 0.5rem;">Points Calculation Rules (Football Fantasy Multipliers)</h3>
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size:0.85rem; color: var(--text-secondary);">
+            <div>⚽ <b>Goal Scoring:</b> Defender/GK = +6 | Midfielder = +5 | Forward = +4</div>
+            <div>🎯 <b>Goal Assist:</b> All positions = +3 points</div>
+            <div>🛡️ <b>Clean Sheet:</b> Goalkeeper/Defender = +4 | Midfielder = +1 point</div>
+            <div>🟨🟥 <b>Cards & own goals:</b> Own Goal = -2 | Yellow = -1 | Red = -3 points</div>
+          </div>
+        </div>
+
+        <div class="summary-grid">
+          <div class="panel">
+            <h3 style="border-left:4px solid var(--primary-neon); padding-left:0.75rem; margin-bottom:1rem;">🏆 Manager Leaderboard</h3>
+            <div id="tracker-leaderboard" class="rankings-list">
+              <p style="color:var(--text-muted); text-align:center; padding: 2rem 0;">Waiting for Auction completion...</p>
+            </div>
+          </div>
+          
+          <div class="panel" style="display:flex; flex-direction:column; justify-content:space-between;">
+            <h3 style="border-left:4px solid var(--danger-neon); padding-left:0.75rem; margin-bottom:1rem;">⚡ Match Ticker</h3>
+            <div id="tracker-feed" class="log-container" style="height:250px; background:rgba(0,0,0,0.2); border-radius:8px; padding: 1rem; overflow-y:auto;">
+              <p style="color:var(--text-muted); text-align:center; margin-top:80px;">The live simulation will begin when the host starts the matchday.</p>
+            </div>
+            <button class="btn-primary" id="start-tracker-sim" style="margin-top:1.5rem;" onclick="startMatchdaySimulation()">⚡ Simulate Matchday Weekend</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ HISTORY VIEW ═══════════ -->
+      <section id="history-view" class="view">
+        <h2 style="margin-bottom: 1.5rem">📜 Draft History & Records</h2>
+        <div class="panel" style="max-height:650px; overflow-y:auto;">
+          <div id="history-list" style="display:flex; flex-direction:column; gap:1.25rem;">
+            <!-- History items rendered dynamically -->
+            <p style="color:var(--text-muted); text-align:center; padding:3rem 0;">No past draft history found.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ SUMMARY VIEW ═══════════ -->
+      <section id="summary-view" class="view">
+        <h2 style="margin-bottom: 1.5rem">🏆 Season Review</h2>
+        <div class="summary-grid">
+          
+          <div class="panel">
+            <h3 style="margin-bottom: 1rem; border-left:4px solid var(--warning-neon); padding-left:0.75rem">Final Standing</h3>
+            <div class="rankings-list" id="rankings-list">
+              <!-- Ranking cards rendered by JS -->
+            </div>
+          </div>
+
+          <div class="panel tournament-simulator">
+            <h3 style="margin-bottom: 1rem; border-left:4px solid var(--danger-neon); padding-left:0.75rem">⚡ Cup Tournament Simulator</h3>
+            <p style="font-size:0.85rem; color:var(--text-secondary)">Simulate a knockout round-robin tournament between drafted squads and AI clubs!</p>
+            <div class="sim-results" id="sim-results">
+              <p style="color:var(--text-muted); text-align:center; padding:2rem 0">Click "Simulate" to run the tournament</p>
+            </div>
+            <button class="btn-primary" onclick="simulateTournament()">⚡ Simulate Tournament</button>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:2rem" id="summary-breakdown">
+          <!-- Breakdown rendered by JS -->
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="players.js"></script>
+  <script src="wc2026_players.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "football-auction",
+  "version": "1.0.0",
+  "description": "Multiplayer football auction simulator",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "duckduckgo-images-api": "^1.0.5",
+    "express": "^4.19.2",
+    "nodemailer": "^9.0.3",
+    "pdf-parse": "^2.4.5",
+    "socket.io": "^4.7.5"
+  }
+}

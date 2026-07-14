@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Local data (will use fresh files on server)
+# Uncomment these if you don't want to track user/history data:
+# users.json
+# history.json
