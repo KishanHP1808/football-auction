@@ -1207,6 +1207,26 @@ table.db-table tr:hover {
   margin: 0 auto;
 }
 
+.logout-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 0, 127, 0.2);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--danger-neon);
+  transition: all 0.3s ease;
+  font-size: 0.85rem;
+}
+
+.logout-btn:hover {
+  border-color: var(--danger-neon);
+  background: rgba(255, 0, 127, 0.05);
+}
+
 /* ═══════════════════════════════════════════
    MOBILE RESPONSIVE STYLES
    ═══════════════════════════════════════════ */

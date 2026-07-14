@@ -82,6 +82,7 @@ async function handleLogin() {
       errDiv.style.display = 'none';
       $('#login-overlay').style.display = 'none';
       $('#user-profile').innerHTML = `👤 ${currentUser}`;
+      if ($('#logout-btn')) $('#logout-btn').style.display = 'flex';
       $('#manager-name').value = currentUser;
 
       // Save credentials for auto login on same device
@@ -98,6 +99,15 @@ async function handleLogin() {
     errDiv.textContent = "Server connection error.";
     errDiv.style.display = 'block';
   }
+}
+
+function handleLogout() {
+  localStorage.removeItem('auction_username');
+  localStorage.removeItem('auction_email');
+  currentUser = null;
+  currentEmail = null;
+  showToast("Logged out successfully.");
+  window.location.reload();
 }
 
 async function handleRegister() {
