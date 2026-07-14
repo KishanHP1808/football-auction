@@ -319,7 +319,7 @@ const WC2026_PLAYERS = [
   },
   {
     "id": "wc_arg_10",
-    "name": "Lionel Messi",
+    "name": "(GOAT) Lionel Messi",
     "position": "FW",
     "rating": 86,
     "club": "Inter Miami CF (USA)",

@@ -93,7 +93,7 @@ const INITIAL_PLAYERS = [
   { id: "fw12", name: "Victor Osimhen", position: "FW", rating: 88, club: "Galatasaray", nationality: "Nigeria", basePrice: 65 },
   { id: "fw13", name: "Rafael Leão", position: "FW", rating: 86, club: "AC Milan", nationality: "Portugal", basePrice: 60 },
   { id: "fw14", name: "Rodrygo Goes", position: "FW", rating: 86, club: "Real Madrid", nationality: "Brazil", basePrice: 65 },
-  { id: "fw15", name: "Lionel Messi", position: "FW", rating: 88, club: "Inter Miami", nationality: "Argentina", basePrice: 20 },
+  { id: "fw15", name: "(GOAT) Lionel Messi", position: "FW", rating: 88, club: "Inter Miami", nationality: "Argentina", basePrice: 20 },
   { id: "fw16", name: "Cristiano Ronaldo", position: "FW", rating: 86, club: "Al Nassr", nationality: "Portugal", basePrice: 15 },
   { id: "fw17", name: "Neymar Jr", position: "FW", rating: 86, club: "Al Hilal", nationality: "Brazil", basePrice: 20 },
   { id: "fw18", name: "Luis Díaz", position: "FW", rating: 84, club: "Liverpool", nationality: "Colombia", basePrice: 48 },
