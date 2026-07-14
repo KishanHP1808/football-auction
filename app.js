@@ -617,15 +617,36 @@ function renderAuction() {
           `;
         }).join('');
 
+        const mySkipVote = globalState.skipVotes && globalState.skipVotes.includes(myId);
+        const hasBidBeenRaised = globalState.highestBidder !== null;
+        const skipVotesCount = globalState.skipVotes ? globalState.skipVotes.length : 0;
+        const totalUsers = globalState.users.length;
+
+        let skipBtnText = `Skip Player (${skipVotesCount}/${totalUsers})`;
+        let isHostInstantSkip = false;
+
+        if (isHost && !hasBidBeenRaised) {
+          skipBtnText = `⏩ Skip Player (Host Instant)`;
+          isHostInstantSkip = true;
+        } else if (mySkipVote) {
+          skipBtnText = `✓ Skip Voted (${skipVotesCount}/${totalUsers})`;
+        }
+
+        const skipBtnHtml = `
+          <button class="btn-secondary" onclick="voteSkipPlayer()" ${mySkipVote && !isHostInstantSkip ? 'disabled' : ''} style="margin-top: 1rem; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; border-color: var(--danger-neon); color: var(--danger-neon); font-weight: bold; background: rgba(255, 0, 127, 0.05); padding: 0.85rem;">
+            ${skipBtnText}
+          </button>
+        `;
+
         controls.innerHTML = `
           <div style="text-align:center; margin-top:1rem; width:100%; max-width:520px;">
             <div class="current-highest-panel" style="margin-bottom:0.75rem; background: ${amIHighest ? 'rgba(0, 255, 135, 0.08)' : 'rgba(255,255,255,0.03)'}; border-color: ${amIHighest ? 'var(--success-neon)' : 'var(--glass-border)'}; color: ${amIHighest ? 'var(--success-neon)' : 'var(--text-secondary)'};">
-              Current Bid: $${globalState.currentBid}M &bull; Winner: ${globalState.highestBidder ? globalState.users.find(u => u.id === globalState.highestBidder)?.name : 'None'
-          }
+              Current Bid: $${globalState.currentBid}M &bull; Winner: ${globalState.highestBidder ? globalState.users.find(u => u.id === globalState.highestBidder)?.name : 'None'}
             </div>
             <div style="display:flex; gap:0.5rem; justify-content:space-between; flex-wrap:wrap;">
               ${buttonsHtml}
             </div>
+            ${skipBtnHtml}
           </div>
         `;
       } else if (globalState.phase === 'SOLD') {
@@ -722,6 +743,10 @@ function renderAuction() {
 
 function placeBid(increment = 5) {
   socket.emit('PLACE_BID', increment);
+}
+
+function voteSkipPlayer() {
+  socket.emit('SKIP_PLAYER');
 }
 
 // ──────────────── NOMINATION LOGIC ────────────────

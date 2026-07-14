@@ -304,7 +304,8 @@ function createRoomState(roomCode) {
     },
     messages: [],
     timerInterval: null,
-    lastActivity: Date.now() // Track room activity
+    lastActivity: Date.now(), // Track room activity
+    skipVotes: [] // Track users voting to skip the current player
   };
 }
 
@@ -366,6 +367,21 @@ function handleSold(roomCode) {
   } else {
     addMessage(state, `Unsold. ${state.currentPlayer.name} received no bids.`);
   }
+  broadcastState(roomCode);
+
+  setTimeout(() => {
+    nextPlayer(roomCode);
+  }, 3000);
+}
+
+function handleSkip(roomCode, reason = "skipped") {
+  const state = ROOMS.get(roomCode);
+  if (!state) return;
+
+  clearInterval(state.timerInterval);
+  state.phase = 'SOLD'; // briefly show status transition
+  state.highestBidder = null;
+  addMessage(state, `Skipped! ${state.currentPlayer.name} was ${reason}.`);
   broadcastState(roomCode);
 
   setTimeout(() => {
@@ -528,6 +544,7 @@ async function nextPlayer(roomCode) {
       state.draftedHistory.push(next.id);
       state.currentBid = next.basePrice || 5;
       state.highestBidder = null;
+      state.skipVotes = []; // Reset skip votes
       state.timer = state.config.timer;
       state.phase = 'BIDDING';
       addMessage(state, `Up next: ${next.name} (Base Price: $${state.currentBid}M)`);
@@ -740,6 +757,7 @@ io.on('connection', (socket) => {
     state.draftedHistory.push(player.id);
     state.currentBid = player.basePrice || 5;
     state.highestBidder = null;
+    state.skipVotes = []; // Reset skip votes
     state.timer = state.config.timer;
     state.phase = 'BIDDING';
     
@@ -803,6 +821,35 @@ io.on('connection', (socket) => {
     }
     const results = runTournamentSimulation(state.users);
     io.to(code).emit('TOURNAMENT_RESULTS', results);
+  });
+
+  socket.on('SKIP_PLAYER', () => {
+    const code = socket.roomCode;
+    const state = ROOMS.get(code);
+    if (!state) return;
+
+    if (state.phase !== 'BIDDING' || !state.currentPlayer) return;
+
+    const user = state.users.find(u => u.id === socket.id);
+    if (!user) return;
+
+    // Host instant skip before a bid is raised:
+    if (user.isHost && state.highestBidder === null) {
+      handleSkip(code, "skipped by host");
+      return;
+    }
+
+    // Normal user skip vote:
+    if (!state.skipVotes.includes(socket.id)) {
+      state.skipVotes.push(socket.id);
+      addMessage(state, `${user.name} voted to skip (${state.skipVotes.length}/${state.users.length})`);
+      
+      if (state.skipVotes.length >= state.users.length) {
+        handleSkip(code, "unanimously skipped");
+      } else {
+        broadcastState(code);
+      }
+    }
   });
 
   socket.on('disconnect', () => {
