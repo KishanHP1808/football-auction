@@ -17,3 +17,12 @@ Thumbs.db
 # Uncomment these if you don't want to track user/history data:
 # users.json
 # history.json
+
+# Local tooling & downloads
+mingit/
+mingit.zip
+ghcli/
+gh.zip
+New folder/
+deploy_to_render.js
+

@@ -436,8 +436,9 @@ main {
 }
 
 .player-card.gold-tier {
-  border-color: var(--warning-neon);
-  box-shadow: 0 0 35px rgba(249, 217, 118, 0.3);
+  border-color: #ffd700;
+  background: radial-gradient(circle at 50% 10%, rgba(255, 215, 0, 0.15), rgba(8, 11, 17, 0.98));
+  box-shadow: 0 0 35px rgba(255, 215, 0, 0.25);
 }
 
 .player-card.gold-tier::before {
@@ -445,9 +446,59 @@ main {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   border-radius: 20px;
-  border: 1px solid rgba(249, 217, 118, 0.2);
+  border: 1px solid rgba(255, 215, 0, 0.2);
   pointer-events: none;
   z-index: 2;
+}
+
+.player-card.silver-tier {
+  border-color: #c0c0c0;
+  background: radial-gradient(circle at 50% 10%, rgba(192, 192, 192, 0.15), rgba(8, 11, 17, 0.98));
+  box-shadow: 0 0 35px rgba(192, 192, 192, 0.2);
+}
+
+.player-card.silver-tier::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 20px;
+  border: 1px solid rgba(192, 192, 192, 0.2);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.player-card.bronze-tier {
+  border-color: #cd7f32;
+  background: radial-gradient(circle at 50% 10%, rgba(205, 127, 50, 0.15), rgba(8, 11, 17, 0.98));
+  box-shadow: 0 0 30px rgba(205, 127, 50, 0.15);
+}
+
+.player-card.bronze-tier::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 20px;
+  border: 1px solid rgba(205, 127, 50, 0.2);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.player-card.going-once {
+  animation: going-once-glow 0.8s infinite alternate !important;
+}
+
+.player-card.going-twice {
+  animation: going-twice-glow 0.4s infinite alternate !important;
+}
+
+@keyframes going-once-glow {
+  from { border-color: var(--warning-neon); box-shadow: 0 0 25px rgba(255, 234, 0, 0.4); }
+  to { border-color: #fff; box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); }
+}
+
+@keyframes going-twice-glow {
+  from { border-color: var(--danger-neon); box-shadow: 0 0 30px rgba(255, 0, 127, 0.6); }
+  to { border-color: #fff; box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); }
 }
 
 .card-rating-badge {
@@ -513,6 +564,18 @@ main {
   width: 60px;
   height: 60px;
   fill: var(--text-secondary);
+}
+
+.player-photo-main {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-top: 2rem;
+  border: 2px solid var(--glass-border);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+  position: relative;
+  z-index: 5;
 }
 
 .player-card-info {
@@ -1893,3 +1956,10 @@ table.db-table tr:hover {
     font-size: 0.7rem;
   }
 }
+
+/* ── Pulse animation (loading skeleton + voice activity) ── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.97); }
+}
+

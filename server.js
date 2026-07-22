@@ -1,8 +1,9 @@
 const express = require('express');
 const http = require('http');
+const crypto = require('crypto');
 const { Server } = require('socket.io');
-const { searchPlayers, searchDuckDuckGoImage } = require('./api.js');
-const { getPlayerCareerFantasyPoints } = require('./players.js');
+
+const { getPlayerCareerFantasyPoints } = require('./public/players.js');
 const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
@@ -19,7 +20,7 @@ const io = new Server(server, {
 });
 
 app.use(express.json());
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
 
 const USERS_FILE = path.join(__dirname, 'users.json');
 const HISTORY_FILE = path.join(__dirname, 'history.json');
@@ -28,21 +29,19 @@ const HISTORY_FILE = path.join(__dirname, 'history.json');
 let cachedUsers = null;
 let cachedHistory = null;
 
-function loadJSON(file) {
-  if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, '[]', 'utf8');
-    return [];
-  }
+async function loadJSON(file) {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
+    const data = await fs.promises.readFile(file, 'utf8');
+    return JSON.parse(data);
   } catch (e) {
+    try { await fs.promises.writeFile(file, '[]', 'utf8'); } catch(err){}
     return [];
   }
 }
 
-function loadUsers() {
+async function loadUsers() {
   if (cachedUsers !== null) return cachedUsers;
-  cachedUsers = loadJSON(USERS_FILE);
+  cachedUsers = await loadJSON(USERS_FILE);
   return cachedUsers;
 }
 
@@ -53,9 +52,9 @@ function saveUsers(users) {
   });
 }
 
-function loadHistory() {
+async function loadHistory() {
   if (cachedHistory !== null) return cachedHistory;
-  cachedHistory = loadJSON(HISTORY_FILE);
+  cachedHistory = await loadJSON(HISTORY_FILE);
   return cachedHistory;
 }
 
@@ -219,14 +218,15 @@ async function sendAdminNotification(subject, htmlContent) {
   }
 }
 
-app.post('/api/register', (req, res) => {
+app.post('/api/register', async (req, res) => {
   const { username, password, email } = req.body;
   if (!username || !password || !email) return res.status(400).json({ error: 'Username, password and email required' });
-  const users = loadUsers();
+  const users = await loadUsers();
   if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
     return res.status(400).json({ error: 'Username already exists' });
   }
-  users.push({ username, password, email });
+  const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+  users.push({ username, password: hashedPassword, email });
   saveUsers(users);
 
   sendAdminNotification('📝 New User Registered', `
@@ -239,11 +239,12 @@ app.post('/api/register', (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
-  const users = loadUsers();
-  const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
+  const users = await loadUsers();
+  const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+  const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && (u.password === hashedPassword || u.password === password));
   if (!user) return res.status(400).json({ error: 'Invalid username or password' });
 
   sendAdminNotification('🔑 User Logged In', `
@@ -256,10 +257,10 @@ app.post('/api/login', (req, res) => {
   res.json({ success: true, username: user.username, email: user.email });
 });
 
-app.get('/api/history', (req, res) => {
-  const username = req.query.username;
+app.get('/api/history', async (req, res) => {
+  const { username } = req.query;
   if (!username) return res.status(400).json({ error: 'Username required' });
-  const history = loadHistory();
+  const history = await loadHistory();
   const userHistory = history.filter(h => h.username && h.username.toLowerCase() === username.toLowerCase());
   res.json(userHistory);
 });
@@ -282,15 +283,14 @@ function createRoomState(roomCode) {
       timer: 15,
       budget: 300,
       squadSize: 11,
-      apiKey: '',
-      apiHost: 'v3.football.api-sports.io',
       enableManualNominations: false
     },
     messages: [],
     timerInterval: null,
     lastActivity: Date.now(), // Track room activity
     skipVotes: [], // Track users voting to skip the current player
-    isPaused: false // Host pause status
+    isPaused: false, // Host pause status
+    bidHistory: [] // To support bid cancellation
   };
 }
 
@@ -317,6 +317,7 @@ function broadcastState(roomCode) {
     state.lastActivity = Date.now(); // Keep room alive on update
     const broadcastPayload = { ...state };
     delete broadcastPayload.timerInterval;
+    delete broadcastPayload.pool; // Do not broadcast the 9700-player pool to fix severe lag
     io.to(roomCode).emit('STATE_UPDATE', broadcastPayload);
   }
 }
@@ -346,10 +347,14 @@ function handleSold(roomCode) {
   state.phase = 'SOLD';
   if (state.highestBidder) {
     const winner = state.users.find(u => u.id === state.highestBidder);
-    if (winner) {
+    const reservePrice = state.currentPlayer.reservePrice || state.currentPlayer.basePrice;
+    if (winner && state.currentBid >= reservePrice) {
       winner.budget -= state.currentBid;
       winner.squad.push({ ...state.currentPlayer, boughtFor: state.currentBid });
       addMessage(state, `Sold! ${state.currentPlayer.name} goes to ${winner.name} for $${state.currentBid}M`);
+    } else if (winner) {
+      // Revert budget and don't assign player
+      addMessage(state, `Unsold! ${state.currentPlayer.name} did not meet the Reserve Price of $${reservePrice}M (highest bid was $${state.currentBid}M).`);
     }
   } else {
     addMessage(state, `Unsold! ${state.currentPlayer.name} received no bids.`);
@@ -389,12 +394,12 @@ function setNextNominator(state) {
   return null;
 }
 
-function finalizeAuction(state, roomCode) {
+async function finalizeAuction(state, roomCode) {
   state.phase = 'FINISHED';
   addMessage(state, "Auction Completed! Squads are locked.");
   
   try {
-    const history = loadHistory();
+    const history = await loadHistory();
     
     // Compute total career points for each connected manager
     const managerRankings = state.users.map(u => {
@@ -518,23 +523,15 @@ async function nextPlayer(roomCode) {
     }
     
     if (next) {
-      try {
-        if (!next.photo) {
-          const photos = await searchDuckDuckGoImage(next.name + ' ' + next.club + ' football headshot');
-          if (photos && photos.length > 0) {
-            next.photo = photos[0].image;
-          }
-        }
-      } catch (e) {
-        console.log("Failed to fetch photo for auto-nominated player:", e.message);
-      }
-
-      state.currentPlayer = next;
-      state.draftedHistory.push(next.id);
+      // ── FIX: Immediately show LOADING_NEXT so the client never sees a blank gap ──
+      state.phase = 'LOADING_NEXT';
+      state.currentPlayer = next; // show name/basics immediately
       state.currentBid = next.basePrice || 5;
       state.highestBidder = null;
-      state.skipVotes = []; // Reset skip votes
-      state.timer = state.config.timer;
+      state.skipVotes = [];
+      broadcastState(roomCode);
+
+      setupNewPlayer(state, next);
       state.phase = 'BIDDING';
       addMessage(state, `Up next: ${next.name} (Base Price: $${state.currentBid}M)`);
       startTimer(roomCode);
@@ -545,9 +542,67 @@ async function nextPlayer(roomCode) {
   }
 }
 
-function validateBid(state, user, player, newBid) {
+function setupNewPlayer(state, player) {
+  player.buyNowPrice = Math.round(player.basePrice * 2.5);
+  player.reservePrice = Math.round(player.basePrice * 1.1);
+
+  state.currentPlayer = player;
+  state.draftedHistory.push(player.id);
+  state.currentBid = player.basePrice || 5;
+  state.highestBidder = null;
+  state.skipVotes = [];
+  state.timer = state.config.timer;
+  state.bidHistory = [];
+
+  // Reset auto-bid limits for all users
+  state.users.forEach(u => {
+    u.autoBidLimit = null;
+  });
+}
+
+function processAutoBids(state, roomCode) {
+  const inc = 5;
+  const targetBid = state.highestBidder === null ? state.currentPlayer.basePrice : state.currentBid + inc;
+
+  const eligibleContenders = state.users.filter(u => {
+    if (u.id === state.highestBidder) return false;
+    if (!u.autoBidLimit || u.autoBidLimit < targetBid) return false;
+    if (u.budget < targetBid) return false;
+
+    const slotsLeft = state.config.squadSize - u.squad.length;
+    if (slotsLeft <= 0) return false;
+
+    const clubCount = u.squad.filter(p => p.club === state.currentPlayer.club).length;
+    if (clubCount >= 3) return false;
+
+    const remainingSlotsNeeded = slotsLeft - 1;
+    const minReserve = remainingSlotsNeeded * 1;
+    if (u.budget - targetBid < minReserve) return false;
+
+    const hasGK = u.squad.some(p => p.position === 'GK');
+    if (slotsLeft === 1 && !hasGK && state.currentPlayer.position !== 'GK') return false;
+
+    return true;
+  });
+
+  if (eligibleContenders.length === 0) return;
+
+  eligibleContenders.sort((a, b) => b.autoBidLimit - a.autoBidLimit);
+  const bidder = eligibleContenders[0];
+
+  state.bidHistory.push({ bidder: state.highestBidder, bid: state.currentBid });
+  state.currentBid = targetBid;
+  state.highestBidder = bidder.id;
+  state.timer = state.config.timer;
+
+  addMessage(state, `🤖 Auto-Bid: ${bidder.name} bids $${targetBid}M!`);
+  
+  processAutoBids(state, roomCode);
+}
+
+function validateBid(state, user, player, newBid, isBuyNow = false) {
   if (state.phase !== 'BIDDING') return 'Bidding is not active.';
-  if (state.highestBidder === user.id) return 'You are already the highest bidder.';
+  if (!isBuyNow && state.highestBidder === user.id) return 'You are already the highest bidder.';
   
   if (user.budget < newBid) {
     return `Insufficient budget! Your remaining budget is $${user.budget}M, but the bid is $${newBid}M.`;
@@ -580,9 +635,10 @@ function validateBid(state, user, player, newBid) {
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  socket.on('CREATE_ROOM', () => {
+  socket.on('CREATE_ROOM', (poolMode = 'special') => {
     const roomCode = generateRoomCode();
     const state = createRoomState(roomCode);
+    state.config.playerPool = poolMode;
     ROOMS.set(roomCode, state);
 
     socket.roomCode = roomCode;
@@ -685,9 +741,8 @@ io.on('connection', (socket) => {
       state.config.timer = data.timer || 15;
       state.config.budget = data.budget || 300;
       state.config.squadSize = data.squadSize || 11;
-      state.config.apiKey = data.apiKey || '';
-      state.config.apiHost = data.apiHost || 'v3.football.api-sports.io';
       state.config.enableManualNominations = !!data.enableManualNominations;
+      state.config.playerPool = data.playerPool || 'special';
       
       state.pool = data.pool.sort(() => Math.random() - 0.5);
       state.users.forEach(u => u.budget = state.config.budget);
@@ -709,18 +764,33 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('SEARCH_PLAYERS', async ({ query }) => {
+  socket.on('SEARCH_PLAYERS', ({ query }) => {
     const code = socket.roomCode;
     const state = ROOMS.get(code);
     if (!state) return;
 
-    try {
-      const results = await searchPlayers(query, state.config.apiKey, state.config.apiHost);
-      const available = results.filter(p => !state.draftedHistory.includes(p.id));
-      socket.emit('SEARCH_RESULTS', available);
-    } catch (err) {
-      socket.emit('ERROR', 'Error searching players.');
+    const q = (query || '').toLowerCase().trim();
+    if (!q) {
+      socket.emit('SEARCH_RESULTS', []);
+      return;
     }
+
+    // Search the room's current pool + any already-drafted players from the full pool
+    // We search all players sent when auction started (state.pool may be partially consumed,
+    // so we also keep a snapshot; here we search pool + draftedHistory by rebuilding from
+    // the original full set that was shuffled into state.pool at start).
+    // Since state.pool is the remaining undrawn players, for nominations we search it directly.
+    const results = state.pool
+      .filter(p => {
+        const name = (p.name || '').toLowerCase();
+        const club = (p.club || '').toLowerCase();
+        const nat  = (p.nationality || '').toLowerCase();
+        return name.includes(q) || club.includes(q) || nat.includes(q);
+      })
+      .filter(p => !state.draftedHistory.includes(p.id))
+      .slice(0, 25); // limit results
+
+    socket.emit('SEARCH_RESULTS', results);
   });
 
   socket.on('NOMINATE_PLAYER', async (player) => {
@@ -747,23 +817,8 @@ io.on('connection', (socket) => {
       return;
     }
     
-    try {
-      if (!player.photo) {
-        const photos = await searchDuckDuckGoImage(player.name + ' ' + player.club + ' football headshot');
-        if (photos && photos.length > 0) {
-          player.photo = photos[0].image;
-        }
-      }
-    } catch (e) {
-      console.log("Failed to fetch photo for nominated player:", e.message);
-    }
 
-    state.currentPlayer = player;
-    state.draftedHistory.push(player.id);
-    state.currentBid = player.basePrice || 5;
-    state.highestBidder = null;
-    state.skipVotes = []; // Reset skip votes
-    state.timer = state.config.timer;
+    setupNewPlayer(state, player);
     state.phase = 'BIDDING';
     
     state.nominatorIndex = (state.nominatorIndex + 1) % state.users.length;
@@ -803,6 +858,7 @@ io.on('connection', (socket) => {
       return;
     }
 
+    state.bidHistory.push({ bidder: state.highestBidder, bid: state.currentBid });
     state.currentBid = newBid;
     state.highestBidder = socket.id;
     
@@ -812,6 +868,108 @@ io.on('connection', (socket) => {
     }
     
     addMessage(state, `${user.name} bids $${state.currentBid}M! (+ $${inc}M)`);
+    
+    processAutoBids(state, code);
+    broadcastState(code);
+  });
+
+  socket.on('SET_AUTO_BID', (limit) => {
+    const code = socket.roomCode;
+    const state = ROOMS.get(code);
+    if (!state) return;
+
+    if (state.phase !== 'BIDDING' || !state.currentPlayer) return;
+
+    const user = state.users.find(u => u.id === socket.id);
+    if (!user) return;
+
+    const autoBidLimit = parseInt(limit);
+    if (isNaN(autoBidLimit) || autoBidLimit < state.currentBid) {
+      user.autoBidLimit = null;
+      socket.emit('AUTO_BID_RESPONSE', { success: true, limit: null });
+      return;
+    }
+
+    user.autoBidLimit = autoBidLimit;
+    socket.emit('AUTO_BID_RESPONSE', { success: true, limit: autoBidLimit });
+    addMessage(state, `🤖 ${user.name} enabled Auto-Bid (Max: $${autoBidLimit}M)`);
+
+    processAutoBids(state, code);
+    broadcastState(code);
+  });
+
+  socket.on('BUY_NOW', () => {
+    const code = socket.roomCode;
+    const state = ROOMS.get(code);
+    if (!state) return;
+
+    if (state.phase !== 'BIDDING' || !state.currentPlayer) return;
+
+    const user = state.users.find(u => u.id === socket.id);
+    if (!user) return;
+
+    const buyNowPrice = state.currentPlayer.buyNowPrice || Math.round(state.currentPlayer.basePrice * 2.5);
+
+    const errorMsg = validateBid(state, user, state.currentPlayer, buyNowPrice, true);
+    if (errorMsg) {
+      socket.emit('ERROR', errorMsg);
+      return;
+    }
+
+    state.bidHistory.push({ bidder: state.highestBidder, bid: state.currentBid });
+    state.currentBid = buyNowPrice;
+    state.highestBidder = socket.id;
+
+    addMessage(state, `⚡ Buy Now: ${user.name} bought ${state.currentPlayer.name} instantly for $${buyNowPrice}M!`);
+    
+    if (state.timerInterval) clearInterval(state.timerInterval);
+    handleSold(code);
+  });
+
+  socket.on('CANCEL_LAST_BID', () => {
+    const code = socket.roomCode;
+    const state = ROOMS.get(code);
+    if (!state) return;
+
+    if (state.phase !== 'BIDDING' || !state.currentPlayer) return;
+
+    const user = state.users.find(u => u.id === socket.id);
+    if (!user) return;
+
+    if (state.highestBidder !== socket.id) {
+      socket.emit('ERROR', 'You can only cancel the bid if you are currently the highest bidder.');
+      return;
+    }
+
+    if (state.bidHistory && state.bidHistory.length > 0) {
+      const prev = state.bidHistory.pop();
+      state.currentBid = prev.bid;
+      state.highestBidder = prev.bidder;
+      
+      const newHighestName = state.highestBidder ? (state.users.find(u => u.id === state.highestBidder)?.name || 'Unknown') : 'None';
+      addMessage(state, `🔄 Bid Canceled: ${user.name} withdrew their bid. Price reverted to $${state.currentBid}M (held by ${newHighestName}).`);
+    } else {
+      state.currentBid = state.currentPlayer.basePrice || 5;
+      state.highestBidder = null;
+      addMessage(state, `🔄 Bid Canceled: ${user.name} withdrew their bid. Price reverted to starting price of $${state.currentBid}M.`);
+    }
+
+    state.timer = state.config.timer;
+    broadcastState(code);
+  });
+
+  socket.on('SEND_CHAT_MESSAGE', (messageText) => {
+    const code = socket.roomCode;
+    const state = ROOMS.get(code);
+    if (!state) return;
+
+    const user = state.users.find(u => u.id === socket.id);
+    if (!user) return;
+
+    if (!messageText || typeof messageText !== 'string' || messageText.trim() === '') return;
+
+    const sanitizedMessage = messageText.trim().substring(0, 150);
+    addMessage(state, `💬 ${user.name}: ${sanitizedMessage}`);
     broadcastState(code);
   });
 
@@ -917,6 +1075,7 @@ io.on('connection', (socket) => {
       broadcastState(code);
     }
   });
+
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);

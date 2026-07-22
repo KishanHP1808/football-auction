@@ -78,7 +78,8 @@
           <h2 style="color:var(--text-primary); font-size:1.8rem; font-family:var(--font-display);">🏆 Football Draft Lobby</h2>
           <p style="color:var(--text-secondary); font-size:0.95rem; max-width:480px; margin-bottom:1rem;">Start a private live auction tournament room and invite your friends, or join an active room code.</p>
           <div style="display:flex; gap:1.25rem; width:100%; justify-content:center; flex-wrap:wrap;">
-            <button class="btn-primary" onclick="showCreateRoom()" style="flex:1; min-width:200px; padding:1.25rem; font-size:1.1rem; border-radius:12px;">🎨 Create Private Room</button>
+            <button class="btn-primary" onclick="showCreateRoom('special')" style="flex:1; min-width:200px; padding:1.25rem; font-size:1.1rem; border-radius:12px; background:linear-gradient(135deg, var(--success-neon), #00b359); border-color:var(--success-neon); color:#111;">🌟 Create Elite Room</button>
+            <button class="btn-primary" onclick="showCreateRoom('wc2026')" style="flex:1; min-width:200px; padding:1.25rem; font-size:1.1rem; border-radius:12px;">🌍 Create World Cup Room</button>
             <button class="btn-secondary" onclick="showJoinRoom()" style="flex:1; min-width:200px; padding:1.25rem; font-size:1.1rem; border-radius:12px;">🔑 Join Room Code</button>
           </div>
         </div>
@@ -134,18 +135,11 @@
                 <label for="manual-nomination-input" style="margin-bottom:0; cursor:pointer;">Turn-Based Nominations (IPL Style)</label>
               </div>
 
-              <h3 style="margin: 1.5rem 0 0.75rem 0; border-left:4px solid var(--secondary-neon); padding-left:0.75rem; font-size:1.1rem;">🌐 API Settings (Optional)</h3>
-              
-              <div class="form-group">
-                <label for="api-key-input">API-Football API Key</label>
-                <input type="password" class="form-control" id="api-key-input" placeholder="Enter RapidAPI or API-Sports Key">
-              </div>
-
-              <div class="form-group">
-                <label for="api-host-input">API Host Domain</label>
-                <select id="api-host-input" class="form-control">
-                  <option value="v3.football.api-sports.io" selected>API-Sports (v3.football.api-sports.io)</option>
-                  <option value="api-football-v1.p.rapidapi.com">RapidAPI (api-football-v1.p.rapidapi.com)</option>
+              <div class="form-group" style="margin-top: 1.5rem;">
+                <label for="player-pool-select" style="display:block; border-left:4px solid var(--success-neon); padding-left:0.75rem; font-size:1.1rem; font-weight:bold; margin-bottom: 0.75rem;">⚽ Player Pool</label>
+                <select id="player-pool-select" class="form-control" style="background:rgba(255,255,255,0.05); color:var(--text-primary); border:1px solid var(--glass-border); border-radius:8px; padding:0.75rem; width:100%; cursor:pointer; font-size:0.9rem;">
+                  <option value="special" style="background:var(--panel-bg); color:#fff;" selected>🌟 Elite Players (players.js — ~115 players)</option>
+                  <option value="wc2026" style="background:var(--panel-bg); color:#fff;">🌍 All Players (wc2026_players.js — 9700+ players)</option>
                 </select>
               </div>
 
@@ -182,14 +176,29 @@
 
       <!-- ═══════════ LIVE AUCTION VIEW ═══════════ -->
       <section id="auction-view" class="view">
+
+        <!-- Audio Settings Bar -->
+        <div id="audio-settings-bar" style="display:flex; justify-content:flex-end; padding-bottom: 0.5rem;">
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; color:var(--text-secondary); font-size:0.85rem;">
+            <input type="checkbox" id="read-aloud-toggle" style="accent-color:var(--primary-neon);">
+            🔊 Read Player Names Aloud
+          </label>
+        </div>
+
         <div class="arena-grid">
 
           <!-- Left: Live Log -->
           <div class="arena-sidebar">
-            <div class="panel log-panel">
-              <h3>📜 Live Log</h3>
-              <div class="log-container" id="log-container">
-                <!-- Log items appear here -->
+            <div class="panel log-panel" style="display:flex; flex-direction:column; justify-content:space-between; height:100%;">
+              <div>
+                <h3>📜 Live Log</h3>
+                <div class="log-container" id="log-container" style="height: calc(100% - 60px);">
+                  <!-- Log items appear here -->
+                </div>
+              </div>
+              <div style="display:flex; gap:0.5rem; margin-top:0.75rem; border-top:1px solid var(--glass-border); padding-top:0.75rem;">
+                <input type="text" id="chat-input" placeholder="Type a message..." style="flex:1; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:6px; color:#fff; padding:0.4rem 0.6rem; font-size:0.85rem;" onkeyup="if(event.key === 'Enter') sendChatMessage()">
+                <button onclick="sendChatMessage()" style="padding:0.4rem 0.8rem; background:var(--primary-neon); border:none; border-radius:6px; color:#111; font-weight:bold; font-size:0.85rem; cursor:pointer;">Send</button>
               </div>
             </div>
           </div>
@@ -468,6 +477,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="players.js"></script>
   <script src="wc2026_players.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="app.js"></script>
 </body>
 

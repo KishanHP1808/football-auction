@@ -10,13 +10,25 @@ let soundEnabled = true;
 let currentUser = null;
 let currentEmail = null;
 let currentRoomCode = null;
+let lastSpokenPlayerId = null;
 
-function showCreateRoom() {
+function escapeHTML(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/[&<>'"]/g, tag => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;'
+  }[tag] || tag));
+}
+
+function showCreateRoom(poolMode = 'special') {
   if (!currentUser) {
     showToast("Please sign in first.");
     return;
   }
-  socket.emit('CREATE_ROOM');
+  socket.emit('CREATE_ROOM', poolMode);
 }
 
 function showJoinRoom() {
@@ -81,7 +93,7 @@ async function handleLogin() {
       currentEmail = data.email || '';
       errDiv.style.display = 'none';
       $('#login-overlay').style.display = 'none';
-      $('#user-profile').innerHTML = `👤 ${currentUser}`;
+      $('#user-profile').innerHTML = `👤 ${escapeHTML(currentUser)}`;
       if ($('#logout-btn')) $('#logout-btn').style.display = 'flex';
       $('#manager-name').value = currentUser;
 
@@ -351,6 +363,16 @@ socket.on('ERROR', (msg) => {
   }
 });
 
+socket.on('AUTO_BID_RESPONSE', (res) => {
+  if (res.success) {
+    if (res.limit) {
+      showToast(`🤖 Auto-Bid limit updated to $${res.limit}M!`);
+    } else {
+      showToast(`🤖 Auto-Bid limit disabled.`);
+    }
+  }
+});
+
 socket.on('ROOM_CREATED', (roomCode) => {
   currentRoomCode = roomCode;
   socket.emit('JOIN_ROOM', { name: currentUser, email: currentEmail, roomCode: roomCode });
@@ -359,6 +381,21 @@ socket.on('ROOM_CREATED', (roomCode) => {
 socket.on('STATE_UPDATE', (state) => {
   const prevPhase = globalState ? globalState.phase : null;
   globalState = state;
+
+  if (state.currentPlayer) {
+    if (state.currentPlayer.id !== lastSpokenPlayerId) {
+      lastSpokenPlayerId = state.currentPlayer.id;
+      const readToggle = document.getElementById('read-aloud-toggle');
+      if (readToggle && readToggle.checked) {
+        if ('speechSynthesis' in window) {
+          const msg = new SpeechSynthesisUtterance(`Up next: ${state.currentPlayer.name}`);
+          window.speechSynthesis.speak(msg);
+        }
+      }
+    }
+  } else {
+    lastSpokenPlayerId = null;
+  }
 
   if (state.roomCode) {
     currentRoomCode = state.roomCode;
@@ -375,8 +412,7 @@ socket.on('STATE_UPDATE', (state) => {
       $('#squad-size-input').disabled = true;
       $('#timer-input').disabled = true;
       $('#manual-nomination-input').disabled = true;
-      $('#api-key-input').disabled = true;
-      $('#api-host-input').disabled = true;
+      if ($('#player-pool-select')) $('#player-pool-select').disabled = true;
       $('#start-btn').style.display = 'none';
       $('#lobby-setup-panel h2').textContent = `⚙️ Room Settings (Host: ${host?.name || 'Manager'})`;
     } else {
@@ -384,8 +420,7 @@ socket.on('STATE_UPDATE', (state) => {
       $('#squad-size-input').disabled = false;
       $('#timer-input').disabled = false;
       $('#manual-nomination-input').disabled = false;
-      $('#api-key-input').disabled = false;
-      $('#api-host-input').disabled = false;
+      if ($('#player-pool-select')) $('#player-pool-select').disabled = false;
       $('#start-btn').style.display = 'block';
       $('#lobby-setup-panel h2').textContent = `⚙️ Room Setup (You are Host)`;
     }
@@ -414,6 +449,16 @@ socket.on('STATE_UPDATE', (state) => {
     } else if (state.phase === 'SOLD') {
       if (state.highestBidder) {
         playSoldSound();
+        if (state.highestBidder === myId && prevPhase !== 'SOLD') {
+          showToast("🏆 Congratulations! You won the draft bid!");
+          if (typeof confetti === 'function') {
+            confetti({
+              particleCount: 150,
+              spread: 80,
+              origin: { y: 0.6 }
+            });
+          }
+        }
       } else {
         playUnsoldSound();
       }
@@ -463,14 +508,20 @@ socket.on('TOURNAMENT_RESULTS', (results) => {
 function renderLobby() {
   if (!globalState) return;
 
-  const poolSize = getPlayersDatabase().length;
+  // Update pool size preview based on selected mode
+  const poolSelect = document.getElementById('player-pool-select');
+  if (poolSelect && globalState.config && globalState.config.playerPool) {
+    poolSelect.value = globalState.config.playerPool;
+  }
+  const poolMode = poolSelect ? poolSelect.value : 'special';
+  const poolSize = poolMode === 'wc2026' ? (typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS.length : 0) : INITIAL_PLAYERS.length;
   if ($('#summary-pool')) $('#summary-pool').textContent = poolSize;
   if ($('#connected-count')) $('#connected-count').textContent = globalState.users.length;
 
   const list = $('#connected-players-list');
   if (list) {
     list.innerHTML = globalState.users.map(u =>
-      `<li>${u.isHost ? '👑 ' : '👤 '} <b>${u.name}</b> ${u.id === myId ? '(You)' : ''}</li>`
+      `<li>${u.isHost ? '👑 ' : '👤 '} <b>${escapeHTML(u.name)}</b> ${u.id === myId ? '(You)' : ''}</li>`
     ).join('');
   }
 
@@ -486,17 +537,19 @@ function startAuction() {
   const budget = parseInt($('#budget-input').value) || 300;
   const timer = parseInt($('#timer-input').value) || 15;
   const squadSize = parseInt($('#squad-size-input').value) || 11;
-  const apiKey = $('#api-key-input').value || '';
-  const apiHost = $('#api-host-input').value || 'v3.football.api-sports.io';
   const enableManualNominations = $('#manual-nomination-input').checked;
 
+  // Determine player pool based on selection
+  const poolSelect = document.getElementById('player-pool-select');
+  const poolMode = poolSelect ? poolSelect.value : 'special';
+  const pool = poolMode === 'wc2026' ? (typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS : []) : INITIAL_PLAYERS;
+
   socket.emit('START_AUCTION', {
-    pool: getPlayersDatabase(),
+    pool: pool,
+    playerPool: poolMode,
     budget: budget,
     timer: timer,
     squadSize: squadSize,
-    apiKey: apiKey,
-    apiHost: apiHost,
     enableManualNominations: enableManualNominations
   });
 }
@@ -514,7 +567,7 @@ function renderAuction() {
       if (i === 0) color = 'var(--primary-neon)';
       if (m.includes('Sold!')) color = 'var(--success-neon)';
       if (m.includes('Unsold')) color = 'var(--danger-neon)';
-      return `<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05); color:${color}">${m}</div>`;
+      return `<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05); color:${color}">${escapeHTML(m)}</div>`;
     }).join('');
   }
 
@@ -522,6 +575,33 @@ function renderAuction() {
   const controls = $('#bidding-controls-area');
   const timerContainer = $('#timer-container');
   const nominationPanel = $('#nomination-panel');
+
+  // ── Handle LOADING_NEXT: show skeleton card while server fetches photo ──
+  if (globalState.phase === 'LOADING_NEXT') {
+    timerContainer.style.display = 'none';
+    nominationPanel.style.display = 'none';
+    cardArea.style.display = 'block';
+    controls.innerHTML = '';
+
+    const p = globalState.currentPlayer;
+    if (p) {
+      cardArea.innerHTML = `
+        <div class="player-card active-card" style="margin:0 auto; animation: pulse 1.2s infinite;">
+          <div class="card-rating-badge"><span class="num">?</span><span class="pos">${p.position || '?'}</span></div>
+          <div class="club-logo">${p.club || ''}</div>
+          <div style="width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,rgba(0,242,254,0.15),rgba(0,255,135,0.08));margin:0 auto 1rem;display:flex;align-items:center;justify-content:center;font-size:2.5rem;animation:pulse 1.2s infinite;">&#9917;</div>
+          <div class="player-card-info">
+            <div class="name">${p.name}</div>
+            <div class="meta" style="color:var(--text-secondary);">${p.nationality || ''}</div>
+            <div style="margin-top:0.75rem;font-size:0.78rem;color:var(--primary-neon);animation:pulse 1.2s infinite;">Loading next player…</div>
+          </div>
+        </div>
+      `;
+    } else {
+      cardArea.innerHTML = `<div class="empty-card-placeholder"><h3 style="color:var(--primary-neon);">Loading next player…</h3></div>`;
+    }
+    return;
+  }
 
   // Switch between Nomination and Bidding view modes
   if (globalState.phase === 'NOMINATION') {
@@ -555,8 +635,25 @@ function renderAuction() {
       const p = globalState.currentPlayer;
       const photoUrl = p.photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=random&size=150');
 
+      let tierClass = 'bronze-tier';
+      if (p.rating >= 85) tierClass = 'gold-tier';
+      else if (p.rating >= 78) tierClass = 'silver-tier';
+
+      let timerAlertClass = '';
+      let timerAlertText = '';
+      if (globalState.timer <= 3 && globalState.highestBidder !== null) {
+        timerAlertClass = 'going-twice';
+        timerAlertText = '<div style="color:var(--danger-neon); font-weight:800; font-size:1.1rem; text-shadow:0 0 10px rgba(255,0,127,0.5); text-transform:uppercase; margin-top:0.5rem; animation:pulse 0.4s infinite alternate;">🔥 Going Twice!</div>';
+      } else if (globalState.timer <= 6 && globalState.highestBidder !== null) {
+        timerAlertClass = 'going-once';
+        timerAlertText = '<div style="color:var(--warning-neon); font-weight:800; font-size:1rem; text-shadow:0 0 10px rgba(255,234,0,0.4); text-transform:uppercase; margin-top:0.5rem; animation:pulse 0.8s infinite alternate;">⚠️ Going Once!</div>';
+      }
+
+      const buyNowPrice = p.buyNowPrice || Math.round(p.basePrice * 2.5);
+      const reservePrice = p.reservePrice || Math.round(p.basePrice * 1.1);
+
       cardArea.innerHTML = `
-        <div class="player-card active-card ${p.rating >= 87 ? 'gold-tier' : ''}" style="margin: 0 auto;">
+        <div class="player-card active-card ${tierClass} ${timerAlertClass}" style="margin: 0 auto;">
           <div class="card-rating-badge">
             <span class="num">${p.rating}</span>
             <span class="pos">${p.position}</span>
@@ -567,11 +664,12 @@ function renderAuction() {
             <div class="name">${p.name}</div>
             <div class="meta">${p.nationality}</div>
             <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
-              <div class="stat-item"><span class="val">${p.rating >= 88 ? 'Elite' : (p.rating >= 82 ? 'Star' : 'Pro')}</span><span class="lbl">TIER</span></div>
-              <div class="stat-item"><span class="val">${p.position}</span><span class="lbl">POS</span></div>
-              <div class="stat-item"><span class="val">${getPlayerCareerFantasyPoints(p)}</span><span class="lbl">CAREER PTS</span></div>
+              <div class="stat-item"><span class="val">${p.rating >= 85 ? 'Gold' : (p.rating >= 78 ? 'Silver' : 'Bronze')}</span><span class="lbl">TIER</span></div>
+              <div class="stat-item"><span class="val">$${reservePrice}M</span><span class="lbl">RESERVE</span></div>
+              <div class="stat-item"><span class="val">$${buyNowPrice}M</span><span class="lbl">BUY NOW</span></div>
               <div class="stat-item"><span class="val">$${p.basePrice}M</span><span class="lbl">BASE</span></div>
             </div>
+            ${timerAlertText}
           </div>
         </div>
       `;
@@ -580,19 +678,19 @@ function renderAuction() {
       const amIHighest = globalState.highestBidder === myId;
 
       if (globalState.phase === 'BIDDING') {
-        const increments = [5, 15, 25];
+        const increments = globalState.highestBidder === null ? [5] : [5, 15, 25];
 
         const buttonsHtml = increments.map(inc => {
           let extra = 0;
           if (globalState.highestBidder === null) {
-            extra = inc === 5 ? 0 : (inc === 15 ? 10 : 20);
+            extra = 0; // First bid is always the base price
           } else {
             extra = inc;
           }
           const nextBid = globalState.currentBid + extra;
 
           let disableBid = false;
-          let bidButtonText = `+$${inc}M (Bid $${nextBid}M)`;
+          let bidButtonText = globalState.highestBidder === null ? `Bid Base Price ($${nextBid}M)` : `+$${inc}M (Bid $${nextBid}M)`;
 
           if (me) {
             const clubCount = me.squad.filter(s => s.club === p.club).length;
@@ -625,11 +723,54 @@ function renderAuction() {
           }
 
           return `
-            <button class="btn-primary" onclick="placeBid(${inc})" ${disableBid ? 'disabled' : ''} style="flex:1; font-size:0.9rem; padding: 0.75rem 0.5rem; white-space: nowrap; min-width: 120px;">
+            <button class="btn-primary" onclick="placeBid(${inc})" ${disableBid ? 'disabled' : ''} style="flex:1; font-size:0.85rem; padding: 0.6rem 0.4rem; white-space: nowrap; min-width: 100px;">
               ${bidButtonText}
             </button>
           `;
         }).join('');
+
+        const buyNowPrice = p.buyNowPrice || Math.round(p.basePrice * 2.5);
+        let disableBuyNow = false;
+        let buyNowText = `⚡ Buy Now ($${buyNowPrice}M)`;
+        if (me) {
+          const slotsLeft = globalState.config.squadSize - me.squad.length;
+          const minReserve = (slotsLeft - 1) * 1;
+          if (me.squad.length >= globalState.config.squadSize) {
+            disableBuyNow = true;
+            buyNowText = 'Squad Full';
+          } else if (me.budget < buyNowPrice || (me.budget - buyNowPrice < minReserve)) {
+            disableBuyNow = true;
+            buyNowText = 'Cannot Afford Buy Now';
+          }
+        } else {
+          disableBuyNow = true;
+        }
+
+        const buyNowHtml = `
+          <button class="btn-primary" onclick="buyNow()" ${disableBuyNow ? 'disabled' : ''} style="width:100%; margin-top:0.5rem; background:linear-gradient(135deg, #ff007f, #ff0055); border-color:#ff007f; color:#fff; font-weight:800; font-size:0.9rem; padding:0.6rem;">
+            ${buyNowText}
+          </button>
+        `;
+
+        let cancelBidHtml = '';
+        if (amIHighest) {
+          cancelBidHtml = `
+            <button class="btn-secondary" onclick="cancelBid()" style="width:100%; margin-top:0.5rem; border-color:var(--danger-neon); color:var(--danger-neon); font-weight:bold; font-size:0.85rem; padding:0.6rem;">
+              🔄 Cancel Last Bid
+            </button>
+          `;
+        }
+
+        const myAutoBid = me?.autoBidLimit;
+        const autoBidHtml = `
+          <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.75rem; width:100%; border:1px dashed var(--glass-border); padding:0.5rem; border-radius:8px; background:rgba(255,255,255,0.02);">
+            <span style="font-size:0.78rem; color:var(--text-secondary); white-space:nowrap;">🤖 Auto-Bid:</span>
+            <input type="number" id="auto-bid-limit" placeholder="Max Limit ($M)" value="${myAutoBid || ''}" style="flex:1; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:6px; color:#fff; padding:0.3rem 0.5rem; font-size:0.8rem; text-align:center;">
+            <button class="btn-primary" onclick="setAutoBid()" style="font-size:0.8rem; padding:0.35rem 0.75rem; margin:0; width:auto; border-radius:6px;">
+              ${myAutoBid ? 'Update' : 'Enable'}
+            </button>
+          </div>
+        `;
 
         const mySkipVote = globalState.skipVotes && globalState.skipVotes.includes(myId);
         const hasBidBeenRaised = globalState.highestBidder !== null;
@@ -675,6 +816,9 @@ function renderAuction() {
             <div style="display:flex; gap:0.5rem; justify-content:space-between; flex-wrap:wrap;">
               ${buttonsHtml}
             </div>
+            ${buyNowHtml}
+            ${cancelBidHtml}
+            ${autoBidHtml}
             ${skipBtnHtml}
           </div>
         `;
@@ -781,6 +925,30 @@ function renderAuction() {
 
 function placeBid(increment = 5) {
   socket.emit('PLACE_BID', increment);
+}
+
+function buyNow() {
+  socket.emit('BUY_NOW');
+}
+
+function setAutoBid() {
+  const limitInput = document.getElementById('auto-bid-limit');
+  if (limitInput) {
+    const limit = parseInt(limitInput.value);
+    socket.emit('SET_AUTO_BID', isNaN(limit) ? null : limit);
+  }
+}
+
+function cancelBid() {
+  socket.emit('CANCEL_LAST_BID');
+}
+
+function sendChatMessage() {
+  const chatInput = document.getElementById('chat-input');
+  if (chatInput && chatInput.value.trim() !== '') {
+    socket.emit('SEND_CHAT_MESSAGE', chatInput.value);
+    chatInput.value = '';
+  }
 }
 
 function voteSkipPlayer() {
@@ -1189,8 +1357,17 @@ function updateTrackerLeaderboard() {
 // ──────────────── DATABASE VIEW LOGIC ────────────────
 let currentDB = [];
 
+function getActivePoolMode() {
+  if (globalState && globalState.config && globalState.config.playerPool) {
+    return globalState.config.playerPool;
+  }
+  const select = document.getElementById('player-pool-select');
+  return select ? select.value : 'special';
+}
+
 function initDatabase() {
-  currentDB = getPlayersDatabase();
+  const mode = getActivePoolMode();
+  currentDB = getPlayersDatabase(mode);
   renderDatabase();
 }
 
@@ -1470,9 +1647,19 @@ document.addEventListener('DOMContentLoaded', () => {
     currentUser = savedUser;
     currentEmail = savedEmail || '';
     if ($('#login-overlay')) $('#login-overlay').style.display = 'none';
-    if ($('#user-profile')) $('#user-profile').innerHTML = `👤 ${currentUser}`;
+    if ($('#user-profile')) $('#user-profile').innerHTML = `👤 ${escapeHTML(currentUser)}`;
     if ($('#manager-name')) $('#manager-name').value = currentUser;
     showToast(`Welcome back, ${currentUser}!`);
     loadDraftHistory();
   }
+
+  // Player Pool dropdown visual select and highlight
+  const poolSelect = document.getElementById('player-pool-select');
+  if (poolSelect) {
+    poolSelect.addEventListener('change', () => {
+      initDatabase();
+      renderLobby();
+    });
+  }
 });
+

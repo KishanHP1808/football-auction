@@ -2,8 +2,8 @@
    api.js - Player Search & Image Scraping Service
    ============================================================ */
 
-const { INITIAL_PLAYERS } = require('./players.js');
-const { WC2026_PLAYERS } = require('./wc2026_players.js');
+const { INITIAL_PLAYERS } = require('./public/players.js');
+const { WC2026_PLAYERS } = require('./public/wc2026_players.js');
 
 // Combine local database
 const LOCAL_DATABASE = [...INITIAL_PLAYERS];
@@ -44,74 +44,7 @@ function calculateBasePrice(rating) {
   return Math.max(1, Math.round(rating / 15));
 }
 
-const IMAGE_CACHE = new Map();
 const PLAYER_CACHE = new Map();
-
-/**
- * Dynamic DuckDuckGo Image Scraper to fetch player headshots (with caching)
- */
-async function searchDuckDuckGoImage(query) {
-  const cacheKey = (query || '').toLowerCase().trim();
-  if (IMAGE_CACHE.has(cacheKey)) {
-    return IMAGE_CACHE.get(cacheKey);
-  }
-
-  try {
-    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    
-    // Step 1: Get the VQD token
-    const tokenUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}`;
-    const tokenRes = await fetch(tokenUrl, {
-      headers: { 'User-Agent': userAgent }
-    });
-    
-    if (!tokenRes.ok) throw new Error(`Token fetch failed: ${tokenRes.status}`);
-    const tokenHtml = await tokenRes.text();
-    
-    // Extract VQD token using regex
-    const vqdRegex = /vqd=['"]?([0-9A-Za-z-]+)['"]?/;
-    const match = tokenHtml.match(vqdRegex);
-    let vqd = null;
-    if (!match || !match[1]) {
-      const altRegex = /vqd\s*=\s*['"]([^'"]+)['"]/;
-      const altMatch = tokenHtml.match(altRegex);
-      if (!altMatch || !altMatch[1]) {
-        throw new Error("Could not find VQD token in HTML body.");
-      }
-      vqd = altMatch[1];
-    } else {
-      vqd = match[1];
-    }
-    
-    // Step 2: Fetch images from DuckDuckGo i.js endpoint
-    const searchUrl = `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(query)}&vqd=${vqd}&f=,,,`;
-    const searchRes = await fetch(searchUrl, {
-      headers: {
-        'User-Agent': userAgent,
-        'Accept': 'application/json',
-        'Referer': 'https://duckduckgo.com/'
-      }
-    });
-    
-    if (!searchRes.ok) throw new Error(`Image search failed: ${searchRes.status}`);
-    const data = await searchRes.json();
-    
-    if (data && data.results && Array.isArray(data.results)) {
-      const results = data.results.map(r => ({
-        title: r.title,
-        image: r.image,
-        thumbnail: r.thumbnail
-      }));
-      IMAGE_CACHE.set(cacheKey, results);
-      return results;
-    }
-    
-    return [];
-  } catch (err) {
-    console.error(`DuckDuckGo image search failed for "${query}":`, err.message);
-    return [];
-  }
-}
 
 /**
  * Searches players across API-Football (if keys available) or local database (with caching).
@@ -204,6 +137,5 @@ async function searchPlayers(query, apiKey = null, apiHost = 'v3.football.api-sp
 module.exports = {
   searchPlayers,
   calculateBasePrice,
-  searchDuckDuckGoImage,
   LOCAL_DATABASE
 };

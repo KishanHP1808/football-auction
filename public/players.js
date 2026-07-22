@@ -1085,21 +1085,11 @@ const INITIAL_PLAYERS = [
 
 
 // Helper to retrieve players dynamically without localStorage
-function getPlayersDatabase() {
-  const combined = [...INITIAL_PLAYERS];
-  const existingNames = new Set(combined.map(p => p.name.toLowerCase().trim()));
-  const existingIds = new Set(combined.map(p => p.id));
-
-  if (typeof WC2026_PLAYERS !== 'undefined') {
-    WC2026_PLAYERS.forEach(p => {
-      if (!existingIds.has(p.id) && !existingNames.has(p.name.toLowerCase().trim())) {
-        combined.push(p);
-        existingIds.add(p.id);
-        existingNames.add(p.name.toLowerCase().trim());
-      }
-    });
+function getPlayersDatabase(mode = 'special') {
+  if (mode === 'wc2026') {
+    return typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS : [];
   }
-  return combined;
+  return INITIAL_PLAYERS;
 }
 
 function getPlayerCareerFantasyPoints(p) {
