@@ -248,15 +248,9 @@ main {
 
 /* LOBBY VIEW */
 .lobby-grid {
-  display: grid;
-  grid-template-columns: 1fr 350px;
-  gap: 2rem;
-}
-
-@media (max-width: 900px) {
-  .lobby-grid {
-    grid-template-columns: 1fr;
-  }
+  display: block;
+  max-width: 680px;
+  margin: 0 auto;
 }
 
 .setup-form h2, .lobby-summary h2 {
