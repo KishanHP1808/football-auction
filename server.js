@@ -610,6 +610,9 @@ function processAutoBids(state, roomCode) {
 function validateBid(state, user, player, newBid, isBuyNow = false) {
   if (state.phase !== 'BIDDING') return 'Bidding is not active.';
   if (!isBuyNow && state.highestBidder === user.id) return 'You are already the highest bidder.';
+  if (!isBuyNow && state.highestBidder !== null && newBid <= state.currentBid) {
+    return 'Your bid must be higher than the current highest bid.';
+  }
   
   if (user.budget < newBid) {
     return `Insufficient budget! Your remaining budget is $${user.budget}M, but the bid is $${newBid}M.`;

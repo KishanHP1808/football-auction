@@ -399,30 +399,27 @@ socket.on('STATE_UPDATE', (state) => {
 
   if (state.roomCode) {
     currentRoomCode = state.roomCode;
-    $('#room-code-display').textContent = `ROOM CODE: ${state.roomCode}`;
-    $('#lobby-choice-container').style.display = 'none';
-    $('#lobby-join-panel').style.display = 'none';
+    if ($('#room-code-display')) $('#room-code-display').textContent = `ROOM CODE: ${state.roomCode}`;
+    if ($('#lobby-choice-container')) $('#lobby-choice-container').style.display = 'none';
+    if ($('#lobby-join-panel')) $('#lobby-join-panel').style.display = 'none';
     if ($('#leave-room-btn')) $('#leave-room-btn').style.display = 'block';
-    $('#lobby-room-details').style.display = 'block';
+    if ($('#lobby-room-details')) $('#lobby-room-details').style.display = 'block';
 
     const me = state.users.find(u => u.id === myId);
     const host = state.users.find(u => u.isHost);
-    if (me && !me.isHost) {
-      $('#budget-input').disabled = true;
-      $('#squad-size-input').disabled = true;
-      $('#timer-input').disabled = true;
-      $('#manual-nomination-input').disabled = true;
-      if ($('#player-pool-select')) $('#player-pool-select').disabled = true;
-      $('#start-btn').style.display = 'none';
-      $('#lobby-setup-panel h2').textContent = `⚙️ Room Settings (Host: ${host?.name || 'Manager'})`;
-    } else {
-      $('#budget-input').disabled = false;
-      $('#squad-size-input').disabled = false;
-      $('#timer-input').disabled = false;
-      $('#manual-nomination-input').disabled = false;
-      if ($('#player-pool-select')) $('#player-pool-select').disabled = false;
-      $('#start-btn').style.display = 'block';
-      $('#lobby-setup-panel h2').textContent = `⚙️ Room Setup (You are Host)`;
+    const isHostUser = me && me.isHost;
+
+    if ($('#budget-input')) $('#budget-input').disabled = !isHostUser;
+    if ($('#squad-size-input')) $('#squad-size-input').disabled = !isHostUser;
+    if ($('#timer-input')) $('#timer-input').disabled = !isHostUser;
+    if ($('#manual-nomination-input')) $('#manual-nomination-input').disabled = !isHostUser;
+    if ($('#first-bid-base-price-input')) $('#first-bid-base-price-input').disabled = !isHostUser;
+    if ($('#player-pool-select')) $('#player-pool-select').disabled = !isHostUser;
+    if ($('#start-btn')) $('#start-btn').style.display = isHostUser ? 'block' : 'none';
+    if ($('#lobby-setup-panel h2')) {
+      $('#lobby-setup-panel h2').textContent = isHostUser 
+        ? `⚙️ Room Setup (You are Host)` 
+        : `⚙️ Room Settings (Host: ${host?.name || 'Manager'})`;
     }
   }
 
@@ -464,8 +461,8 @@ socket.on('STATE_UPDATE', (state) => {
       }
     } else if (state.phase === 'FINISHED') {
       showToast("🏆 The auction is finished! Head over to the Live Tracker or Summary tab.");
-      $('#nav-tracker').disabled = false;
-      $('#nav-summary').disabled = false;
+      if ($('#nav-tracker')) $('#nav-tracker').disabled = false;
+      if ($('#nav-summary')) $('#nav-summary').disabled = false;
       playCheerSound();
       loadDraftHistory();
       setTimeout(() => renderSummary(), 500);
@@ -1406,8 +1403,8 @@ function renderDatabase() {
     }
   }
 
-  const posFilter = $('#db-filter-pos').value;
-  const searchStr = $('#db-search').value.toLowerCase();
+  const posFilter = $('#db-filter-pos') ? $('#db-filter-pos').value : 'ALL';
+  const searchStr = $('#db-search') ? $('#db-search').value.toLowerCase() : '';
 
   let filtered = currentDB.filter(p => {
     if (posFilter !== 'ALL' && p.position !== posFilter) return false;
