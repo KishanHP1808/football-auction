@@ -538,6 +538,7 @@ function startAuction() {
   const timer = parseInt($('#timer-input').value) || 15;
   const squadSize = parseInt($('#squad-size-input').value) || 11;
   const enableManualNominations = $('#manual-nomination-input').checked;
+  const enableFirstBidBasePrice = $('#first-bid-base-price-input') ? $('#first-bid-base-price-input').checked : true;
 
   // Determine player pool based on selection
   const poolSelect = document.getElementById('player-pool-select');
@@ -550,7 +551,8 @@ function startAuction() {
     budget: budget,
     timer: timer,
     squadSize: squadSize,
-    enableManualNominations: enableManualNominations
+    enableManualNominations: enableManualNominations,
+    enableFirstBidBasePrice: enableFirstBidBasePrice
   });
 }
 
@@ -587,7 +589,7 @@ function renderAuction() {
     if (p) {
       cardArea.innerHTML = `
         <div class="player-card active-card" style="margin:0 auto; animation: pulse 1.2s infinite;">
-          <div class="card-rating-badge"><span class="num">?</span><span class="pos">${p.position || '?'}</span></div>
+          <div class="card-rating-badge"><span class="num">${p.rating || '?'}</span><span class="pos">${p.position || '?'}</span></div>
           <div class="club-logo">${p.club || ''}</div>
           <div style="width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,rgba(0,242,254,0.15),rgba(0,255,135,0.08));margin:0 auto 1rem;display:flex;align-items:center;justify-content:center;font-size:2.5rem;animation:pulse 1.2s infinite;">&#9917;</div>
           <div class="player-card-info">
@@ -633,21 +635,24 @@ function renderAuction() {
 
     if (globalState.currentPlayer) {
       const p = globalState.currentPlayer;
-      const photoUrl = p.photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=random&size=150');
-
+      
+      // Determine tier for styling
       let tierClass = 'bronze-tier';
       if (p.rating >= 85) tierClass = 'gold-tier';
       else if (p.rating >= 78) tierClass = 'silver-tier';
 
       let timerAlertClass = '';
       let timerAlertText = '';
-      if (globalState.timer <= 3 && globalState.highestBidder !== null) {
-        timerAlertClass = 'going-twice';
+      if (globalState.timer <= 3 && globalState.phase === 'BIDDING') {
+        timerAlertClass = 'timer-urgency-high';
         timerAlertText = '<div style="color:var(--danger-neon); font-weight:800; font-size:1.1rem; text-shadow:0 0 10px rgba(255,0,127,0.5); text-transform:uppercase; margin-top:0.5rem; animation:pulse 0.4s infinite alternate;">🔥 Going Twice!</div>';
-      } else if (globalState.timer <= 6 && globalState.highestBidder !== null) {
-        timerAlertClass = 'going-once';
+      } else if (globalState.timer <= 6 && globalState.phase === 'BIDDING') {
+        timerAlertClass = 'timer-urgency-med';
         timerAlertText = '<div style="color:var(--warning-neon); font-weight:800; font-size:1rem; text-shadow:0 0 10px rgba(255,234,0,0.4); text-transform:uppercase; margin-top:0.5rem; animation:pulse 0.8s infinite alternate;">⚠️ Going Once!</div>';
       }
+
+      const photoUrl = p.photo || `https://images.football-api.com/players/${p.id}.png`;
+      const formBadge = p.formStatus || '➖ Steady';
 
       const buyNowPrice = p.buyNowPrice || Math.round(p.basePrice * 2.5);
       const reservePrice = p.reservePrice || Math.round(p.basePrice * 1.1);
@@ -662,7 +667,10 @@ function renderAuction() {
           <img src="${photoUrl}" class="player-photo-main" alt="${p.name}">
           <div class="player-card-info">
             <div class="name">${p.name}</div>
-            <div class="meta">${p.nationality}</div>
+            <div class="meta" style="display:flex; align-items:center; justify-content:center; gap:0.5rem; margin-bottom:0.4rem;">
+              <span>${p.nationality}</span>
+              <span style="background:rgba(0,242,254,0.1); padding:2px 8px; border-radius:10px; font-size:0.75rem; color:var(--primary-neon); border:1px solid rgba(0,242,254,0.25);">${formBadge}</span>
+            </div>
             <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
               <div class="stat-item"><span class="val">${p.rating >= 85 ? 'Gold' : (p.rating >= 78 ? 'Silver' : 'Bronze')}</span><span class="lbl">TIER</span></div>
               <div class="stat-item"><span class="val">$${reservePrice}M</span><span class="lbl">RESERVE</span></div>
@@ -678,19 +686,25 @@ function renderAuction() {
       const amIHighest = globalState.highestBidder === myId;
 
       if (globalState.phase === 'BIDDING') {
-        const increments = globalState.highestBidder === null ? [5] : [5, 15, 25];
+        const isFirstBid = globalState.highestBidder === null;
+        const increments = isFirstBid ? [0, 5, 15] : [5, 15, 25];
 
         const buttonsHtml = increments.map(inc => {
           let extra = 0;
-          if (globalState.highestBidder === null) {
-            extra = 0; // First bid is always the base price
+          if (isFirstBid) {
+            extra = inc; // 0 for base price, 5 for +5, 15 for +15
           } else {
             extra = inc;
           }
           const nextBid = globalState.currentBid + extra;
 
           let disableBid = false;
-          let bidButtonText = globalState.highestBidder === null ? `Bid Base Price ($${nextBid}M)` : `+$${inc}M (Bid $${nextBid}M)`;
+          let bidButtonText = '';
+          if (isFirstBid) {
+            bidButtonText = inc === 0 ? `🏷️ First Bid: Base ($${nextBid}M)` : `+$${inc}M ($${nextBid}M)`;
+          } else {
+            bidButtonText = `+$${inc}M (Bid $${nextBid}M)`;
+          }
 
           if (me) {
             const clubCount = me.squad.filter(s => s.club === p.club).length;

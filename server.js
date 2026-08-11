@@ -749,6 +749,7 @@ io.on('connection', (socket) => {
       state.config.budget = data.budget || 300;
       state.config.squadSize = data.squadSize || 11;
       state.config.enableManualNominations = !!data.enableManualNominations;
+      state.config.enableFirstBidBasePrice = data.enableFirstBidBasePrice !== false;
       state.config.playerPool = data.playerPool || 'special';
       
       state.pool = data.pool.sort(() => Math.random() - 0.5);
@@ -830,9 +831,9 @@ io.on('connection', (socket) => {
     
     state.nominatorIndex = (state.nominatorIndex + 1) % state.users.length;
     
-    addMessage(state, `${user.name} nominates ${player.name} (Base Price: $${state.currentBid}M)`);
-    broadcastState(code);
+    addMessage(state, `Up next: ${player.name} (Base Price: $${state.currentBid}M)`);
     startTimer(code);
+    broadcastState(code);
   });
 
   socket.on('PLACE_BID', (incrementAmount) => {
@@ -844,20 +845,26 @@ io.on('connection', (socket) => {
     const user = state.users.find(u => u.id === socket.id);
     if (!user) return;
 
-    const allowedIncs = [5, 15, 25];
+    const allowedIncs = [0, 5, 15, 25];
     let inc = parseInt(incrementAmount);
-    if (!allowedIncs.includes(inc)) {
-      inc = 5;
+    if (isNaN(inc) || !allowedIncs.includes(inc)) {
+      inc = 0;
     }
 
-    let extra = 0;
+    let newBid = state.currentBid;
     if (state.highestBidder === null) {
-      extra = inc === 5 ? 0 : (inc === 15 ? 10 : 20);
+      if (inc === 0) {
+        newBid = state.currentBid; // Bid exact Base Price
+      } else if (inc === 5) {
+        newBid = state.currentBid + 5;
+      } else if (inc === 15) {
+        newBid = state.currentBid + 15;
+      } else if (inc === 25) {
+        newBid = state.currentBid + 25;
+      }
     } else {
-      extra = inc;
+      newBid = state.currentBid + (inc === 0 ? 5 : inc);
     }
-
-    const newBid = state.currentBid + extra;
 
     const errorMsg = validateBid(state, user, state.currentPlayer, newBid);
     if (errorMsg) {
@@ -865,6 +872,7 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const isFirstBidAtBase = (state.highestBidder === null && newBid === state.currentPlayer.basePrice);
     state.bidHistory.push({ bidder: state.highestBidder, bid: state.currentBid });
     state.currentBid = newBid;
     state.highestBidder = socket.id;
@@ -874,7 +882,8 @@ io.on('connection', (socket) => {
       io.to(code).emit('TIMER_UPDATE', state.timer);
     }
     
-    addMessage(state, `${user.name} bids $${state.currentBid}M! (+ $${inc}M)`);
+    const incDesc = isFirstBidAtBase ? 'Base Price' : `+$${inc || 5}M`;
+    addMessage(state, `${user.name} bids $${state.currentBid}M! (${incDesc})`);
     
     processAutoBids(state, code);
     broadcastState(code);

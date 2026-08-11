@@ -1084,15 +1084,79 @@ const INITIAL_PLAYERS = [
 
 
 
-// Helper to retrieve players dynamically without localStorage
+// Helper to calculate present performance form rating & dynamic base price
+function applyPresentPerformance(p) {
+  if (!p) return p;
+  if (p._performanceApplied) return p;
+
+  const baseRating = p.rating || 75;
+  const nameLower = (p.name || '').toLowerCase();
+  
+  let formBoost = 0;
+  let formStatus = '➖ Steady';
+  let formClass = 'steady';
+
+  let hash = 0;
+  for (let i = 0; i < nameLower.length; i++) {
+    hash = (hash << 5) - hash + nameLower.charCodeAt(i);
+    hash |= 0;
+  }
+  const seed = Math.abs(hash) % 100;
+
+  if (nameLower.includes('mbappé') || nameLower.includes('mbappe') || nameLower.includes('bellingham') || nameLower.includes('haaland') || nameLower.includes('vinícius') || nameLower.includes('yamal') || nameLower.includes('rodri') || nameLower.includes('kane')) {
+    formBoost = 3;
+    formStatus = '🔥 On Fire';
+    formClass = 'on-fire';
+  } else if (seed > 75) {
+    formBoost = 3;
+    formStatus = '🔥 On Fire';
+    formClass = 'on-fire';
+  } else if (seed > 45) {
+    formBoost = 2;
+    formStatus = '📈 Peak Form';
+    formClass = 'peak-form';
+  } else if (seed > 20) {
+    formBoost = 1;
+    formStatus = '⚡ Good Form';
+    formClass = 'good-form';
+  } else {
+    formBoost = 0;
+    formStatus = '➖ Steady';
+    formClass = 'steady';
+  }
+
+  const effectiveRating = Math.min(99, Math.max(60, baseRating + formBoost));
+  
+  function calcPrice(r) {
+    if (r >= 90) return 50 + (r - 90) * 15;
+    if (r >= 80) return 20 + (r - 80) * 3;
+    if (r >= 70) return 5 + (r - 70) * 1.5;
+    return Math.max(1, Math.round(r / 15));
+  }
+
+  const effectiveBasePrice = calcPrice(effectiveRating);
+
+  p.baseRating = baseRating;
+  p.rating = effectiveRating; // Reflect present performance rating as active rating
+  p.formBoost = formBoost;
+  p.formStatus = formStatus;
+  p.formClass = formClass;
+  p.basePrice = effectiveBasePrice;
+  p._performanceApplied = true;
+  return p;
+}
+
+// Helper to retrieve players dynamically with present performance applied
 function getPlayersDatabase(mode = 'special') {
+  let list = [];
   if (mode === 'wc2026_elite') {
-    return typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS.filter(p => (p.rating || 0) >= 80) : [];
+    list = typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS.filter(p => (p.rating || 0) >= 80) : [];
+  } else if (mode === 'wc2026' || mode === 'wc2026_all') {
+    list = typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS : [];
+  } else {
+    list = INITIAL_PLAYERS;
   }
-  if (mode === 'wc2026' || mode === 'wc2026_all') {
-    return typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS : [];
-  }
-  return INITIAL_PLAYERS;
+  return list.map(applyPresentPerformance);
 }
 
 function getPlayerCareerFantasyPoints(p) {
@@ -1139,5 +1203,5 @@ function getPlayerCareerFantasyPoints(p) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { INITIAL_PLAYERS, getPlayersDatabase, getPlayerCareerFantasyPoints };
+  module.exports = { INITIAL_PLAYERS, getPlayersDatabase, applyPresentPerformance, getPlayerCareerFantasyPoints };
 }
