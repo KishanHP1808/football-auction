@@ -1,0 +1,16 @@
+﻿{
+  "short_name": "Football Auction",
+  "name": "Football Auction Simulator",
+  "icons": [
+    {
+      "src": "icon.png?v=2.0.0",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "background_color": "#080b11",
+  "theme_color": "#00f2fe",
+  "display": "standalone"
+}
