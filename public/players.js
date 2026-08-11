@@ -1086,7 +1086,10 @@ const INITIAL_PLAYERS = [
 
 // Helper to retrieve players dynamically without localStorage
 function getPlayersDatabase(mode = 'special') {
-  if (mode === 'wc2026') {
+  if (mode === 'wc2026_elite') {
+    return typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS.filter(p => (p.rating || 0) >= 80) : [];
+  }
+  if (mode === 'wc2026' || mode === 'wc2026_all') {
     return typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS : [];
   }
   return INITIAL_PLAYERS;

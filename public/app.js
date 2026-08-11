@@ -514,7 +514,7 @@ function renderLobby() {
     poolSelect.value = globalState.config.playerPool;
   }
   const poolMode = poolSelect ? poolSelect.value : 'special';
-  const poolSize = poolMode === 'wc2026' ? (typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS.length : 0) : INITIAL_PLAYERS.length;
+  const poolSize = getPlayersDatabase(poolMode).length;
   if ($('#summary-pool')) $('#summary-pool').textContent = poolSize;
   if ($('#connected-count')) $('#connected-count').textContent = globalState.users.length;
 
@@ -542,7 +542,7 @@ function startAuction() {
   // Determine player pool based on selection
   const poolSelect = document.getElementById('player-pool-select');
   const poolMode = poolSelect ? poolSelect.value : 'special';
-  const pool = poolMode === 'wc2026' ? (typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS : []) : INITIAL_PLAYERS;
+  const pool = getPlayersDatabase(poolMode);
 
   socket.emit('START_AUCTION', {
     pool: pool,

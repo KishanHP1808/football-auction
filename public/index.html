@@ -77,10 +77,11 @@
         <div id="lobby-choice-container" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 4rem 1rem; text-align:center; max-width:600px; margin:0 auto; gap:1.5rem;">
           <h2 style="color:var(--text-primary); font-size:1.8rem; font-family:var(--font-display);">🏆 Football Draft Lobby</h2>
           <p style="color:var(--text-secondary); font-size:0.95rem; max-width:480px; margin-bottom:1rem;">Start a private live auction tournament room and invite your friends, or join an active room code.</p>
-          <div style="display:flex; gap:1.25rem; width:100%; justify-content:center; flex-wrap:wrap;">
-            <button class="btn-primary" onclick="showCreateRoom('special')" style="flex:1; min-width:200px; padding:1.25rem; font-size:1.1rem; border-radius:12px; background:linear-gradient(135deg, var(--success-neon), #00b359); border-color:var(--success-neon); color:#111;">🌟 Create Elite Room</button>
-            <button class="btn-primary" onclick="showCreateRoom('wc2026')" style="flex:1; min-width:200px; padding:1.25rem; font-size:1.1rem; border-radius:12px;">🌍 Create World Cup Room</button>
-            <button class="btn-secondary" onclick="showJoinRoom()" style="flex:1; min-width:200px; padding:1.25rem; font-size:1.1rem; border-radius:12px;">🔑 Join Room Code</button>
+          <div style="display:flex; gap:1rem; width:100%; justify-content:center; flex-wrap:wrap;">
+            <button class="btn-primary" onclick="showCreateRoom('special')" style="flex:1; min-width:180px; padding:1.1rem 0.8rem; font-size:1rem; border-radius:12px; background:linear-gradient(135deg, var(--success-neon), #00b359); border-color:var(--success-neon); color:#111;">🌟 Create Star Elite Room</button>
+            <button class="btn-primary" onclick="showCreateRoom('wc2026_elite')" style="flex:1; min-width:180px; padding:1.1rem 0.8rem; font-size:1rem; border-radius:12px; background:linear-gradient(135deg, #f1c40f, #e67e22); border-color:#f1c40f; color:#111;">🏆 Create World Cup Elite Room</button>
+            <button class="btn-primary" onclick="showCreateRoom('wc2026')" style="flex:1; min-width:180px; padding:1.1rem 0.8rem; font-size:1rem; border-radius:12px;">🌍 Create All World Cup Room</button>
+            <button class="btn-secondary" onclick="showJoinRoom()" style="flex:1; min-width:180px; padding:1.1rem 0.8rem; font-size:1rem; border-radius:12px;">🔑 Join Room Code</button>
           </div>
         </div>
 
@@ -138,8 +139,9 @@
               <div class="form-group" style="margin-top: 1.5rem;">
                 <label for="player-pool-select" style="display:block; border-left:4px solid var(--success-neon); padding-left:0.75rem; font-size:1.1rem; font-weight:bold; margin-bottom: 0.75rem;">⚽ Player Pool</label>
                 <select id="player-pool-select" class="form-control" style="background:rgba(255,255,255,0.05); color:var(--text-primary); border:1px solid var(--glass-border); border-radius:8px; padding:0.75rem; width:100%; cursor:pointer; font-size:0.9rem;">
-                  <option value="special" style="background:var(--panel-bg); color:#fff;" selected>🌟 Elite Players (players.js — ~115 players)</option>
-                  <option value="wc2026" style="background:var(--panel-bg); color:#fff;">🌍 All Players (wc2026_players.js — 9700+ players)</option>
+                  <option value="wc2026_elite" style="background:var(--panel-bg); color:#fff;" selected>🏆 Elite World Cup Players (wc2026_players.js — Rating 80+, ~230 players)</option>
+                  <option value="wc2026" style="background:var(--panel-bg); color:#fff;">🌍 All World Cup Players (wc2026_players.js — 1,070+ players)</option>
+                  <option value="special" style="background:var(--panel-bg); color:#fff;">🌟 Global Star Elite Players (players.js — ~115 players)</option>
                 </select>
               </div>
 
