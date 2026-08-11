@@ -370,7 +370,7 @@ function handleSold(roomCode) {
 
   setTimeout(() => {
     nextPlayer(roomCode);
-  }, 1000); // Snappy transitions: 3000ms -> 1000ms
+  }, 300); // Quick player shift transition: 300ms
 }
 
 function handleSkip(roomCode, reason = "skipped") {
@@ -385,7 +385,7 @@ function handleSkip(roomCode, reason = "skipped") {
 
   setTimeout(() => {
     nextPlayer(roomCode);
-  }, 1000); // Snappy transitions: 3000ms -> 1000ms
+  }, 300); // Quick player shift transition: 300ms
 }
 
 function setNextNominator(state) {
