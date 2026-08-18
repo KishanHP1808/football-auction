@@ -9,6 +9,9 @@ const path = require('path');
 const nodemailer = require('nodemailer');
 
 const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 const server = http.createServer(app);
 
 // Strengthen Socket.IO configuration for high concurrency & low lag
@@ -20,12 +23,15 @@ const io = new Server(server, {
 });
 
 app.use(express.static(path.join(__dirname, 'public'), {
-  etag: false,
-  maxAge: 0,
-  setHeaders: (res) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+  etag: true,
+  setHeaders: (res, filePath) => {
+    if (filePath.toLowerCase().endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+    }
   }
 }));
 
@@ -569,7 +575,9 @@ function setupNewPlayer(state, player) {
 
 function processAutoBids(state, roomCode) {
   const inc = 5;
-  const targetBid = state.highestBidder === null ? state.currentPlayer.basePrice : state.currentBid + inc;
+  const targetBid = state.highestBidder === null
+    ? (state.config.enableFirstBidBasePrice !== false ? state.currentPlayer.basePrice : state.currentPlayer.basePrice + inc)
+    : state.currentBid + inc;
 
   const eligibleContenders = state.users.filter(u => {
     if (u.id === state.highestBidder) return false;
@@ -612,6 +620,12 @@ function validateBid(state, user, player, newBid, isBuyNow = false) {
   if (!isBuyNow && state.highestBidder === user.id) return 'You are already the highest bidder.';
   if (!isBuyNow && state.highestBidder !== null && newBid <= state.currentBid) {
     return 'Your bid must be higher than the current highest bid.';
+  }
+  if (!isBuyNow && state.highestBidder === null) {
+    const minFirstBid = state.config.enableFirstBidBasePrice !== false ? player.basePrice : player.basePrice + 5;
+    if (newBid < minFirstBid) {
+      return `First bid must be at least $${minFirstBid}M.`;
+    }
   }
   
   if (user.budget < newBid) {
@@ -857,6 +871,10 @@ io.on('connection', (socket) => {
     let newBid = state.currentBid;
     if (state.highestBidder === null) {
       if (inc === 0) {
+        if (state.config.enableFirstBidBasePrice === false) {
+          socket.emit('ERROR', 'Opening bid at base price is disabled in this room.');
+          return;
+        }
         newBid = state.currentBid; // Bid exact Base Price
       } else if (inc === 5) {
         newBid = state.currentBid + 5;
