@@ -6,10 +6,7 @@ import requests
 import random
 from typing import List, Dict, Optional
 
-# Note: In the JavaScript version, players are imported from players.js and wc2026_players.js.
-# In Python, we assume these lists are loaded from JSON files or imported as dictionaries.
-INITIAL_PLAYERS = []  # Placeholder for local elite players list
-WC2026_PLAYERS = []   # Placeholder for World Cup players list
+from players import INITIAL_PLAYERS, WC2026_PLAYERS
 
 # Combine local database and remove duplicates by name and ID
 LOCAL_DATABASE: List[Dict] = []

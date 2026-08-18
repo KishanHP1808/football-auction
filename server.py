@@ -8,6 +8,7 @@ import threading
 import hashlib
 import requests
 from typing import Dict, List, Any, Optional
+from players import get_player_career_fantasy_points
 
 # --- Local File Paths ---
 USERS_FILE = 'users.json'
@@ -254,13 +255,15 @@ def finalize_auction(state: Dict[str, Any], room_code: str):
         for u in state["users"]:
             # Record squad to historical stats
             avg_rating = sum(p["rating"] for p in u["squad"]) / len(u["squad"]) if u["squad"] else 0
+            total_career_points = sum(get_player_career_fantasy_points(p) for p in u["squad"])
             history.insert(0, {
                 "username": u["name"],
                 "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
                 "squad": u["squad"],
                 "budgetLeft": u["budget"],
                 "avgRating": round(avg_rating, 1),
-                "score": sum(p.get("rating", 0) for p in u["squad"]) # Placeholder rating score
+                "careerPoints": total_career_points,
+                "score": total_career_points
             })
         save_history(history)
     except Exception as e:
