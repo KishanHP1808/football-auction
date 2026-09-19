@@ -4,7 +4,7 @@
 
 A real-time football auction platform where multiple teams can join an auction, compete for players through live bidding, manage their budgets, and build their squads.
 
-🔗 **Live Demo:** https://football-auction-uak7.onrender.com/
+🔗 **Live Demo:** https://football-auction-three.vercel.app/
 
 🔗 **GitHub:** https://github.com/KishanHP1808/football-auction
 
