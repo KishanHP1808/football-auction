@@ -3,7 +3,7 @@ const http = require('http');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
 
-const { getPlayerCareerFantasyPoints, getPlayersDatabase } = require('./public/players.js');
+const { getPlayerCareerFantasyPoints } = require('./public/players.js');
 const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
@@ -232,42 +232,97 @@ async function sendAdminNotification(subject, htmlContent) {
 }
 
 app.post('/api/register', async (req, res) => {
-  const { username, password, email } = req.body;
-  if (!username || !password || !email) return res.status(400).json({ error: 'Username, password and email required' });
-  const users = await loadUsers();
-  if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
-    return res.status(400).json({ error: 'Username already exists' });
+  try {
+    const { username, password, email } = req.body || {};
+    const trimmedUser = (username || '').trim();
+    const trimmedPass = (password || '').trim();
+    const trimmedEmail = (email || '').trim().toLowerCase();
+
+    if (!trimmedUser || !trimmedPass || !trimmedEmail) {
+      return res.status(400).json({ error: 'Username, password and email are all required.' });
+    }
+
+    if (trimmedUser.length < 2) {
+      return res.status(400).json({ error: 'Username must be at least 2 characters long.' });
+    }
+
+    if (trimmedPass.length < 3) {
+      return res.status(400).json({ error: 'Password must be at least 3 characters long.' });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+
+    const users = await loadUsers();
+    if (users.some(u => u.username && u.username.toLowerCase() === trimmedUser.toLowerCase())) {
+      return res.status(400).json({ error: 'Username already taken. Please choose another.' });
+    }
+
+    if (users.some(u => u.email && u.email.toLowerCase() === trimmedEmail)) {
+      return res.status(400).json({ error: 'An account with this email address already exists.' });
+    }
+
+    const hashedPassword = crypto.createHash('sha256').update(trimmedPass).digest('hex');
+    const newUser = { username: trimmedUser, password: hashedPassword, email: trimmedEmail };
+    users.push(newUser);
+    saveUsers(users);
+
+    sendAdminNotification('📝 New User Registered', `
+      <h3>New User Registration</h3>
+      <p><strong>Username:</strong> ${trimmedUser}</p>
+      <p><strong>Email:</strong> ${trimmedEmail}</p>
+      <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+    `);
+
+    res.json({ success: true, username: trimmedUser, email: trimmedEmail });
+  } catch (err) {
+    console.error('Registration error:', err);
+    res.status(500).json({ error: 'Internal server error during registration.' });
   }
-  const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
-  users.push({ username, password: hashedPassword, email });
-  saveUsers(users);
-
-  sendAdminNotification('📝 New User Registered', `
-    <h3>New User Registration</h3>
-    <p><strong>Username:</strong> ${username}</p>
-    <p><strong>Email:</strong> ${email}</p>
-    <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
-  `);
-
-  res.json({ success: true });
 });
 
 app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
-  const users = await loadUsers();
-  const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
-  const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && (u.password === hashedPassword || u.password === password));
-  if (!user) return res.status(400).json({ error: 'Invalid username or password' });
+  try {
+    const { username, password } = req.body || {};
+    const trimmedUser = (username || '').trim();
+    const trimmedPass = (password || '').trim();
 
-  sendAdminNotification('🔑 User Logged In', `
-    <h3>User Logged In</h3>
-    <p><strong>Username:</strong> ${user.username}</p>
-    <p><strong>Email:</strong> ${user.email}</p>
-    <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
-  `);
+    if (!trimmedUser || !trimmedPass) {
+      return res.status(400).json({ error: 'Username and password are required.' });
+    }
 
-  res.json({ success: true, username: user.username, email: user.email });
+    const users = await loadUsers();
+    const hashedPassword = crypto.createHash('sha256').update(trimmedPass).digest('hex');
+    const user = users.find(u => 
+      u.username && 
+      u.username.toLowerCase() === trimmedUser.toLowerCase() && 
+      (u.password === hashedPassword || u.password === trimmedPass)
+    );
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid username or password.' });
+    }
+
+    // Auto-migrate legacy plain text passwords to secure SHA-256 hash
+    if (user.password === trimmedPass && user.password !== hashedPassword) {
+      user.password = hashedPassword;
+      saveUsers(users);
+    }
+
+    sendAdminNotification('🔑 User Logged In', `
+      <h3>User Logged In</h3>
+      <p><strong>Username:</strong> ${user.username}</p>
+      <p><strong>Email:</strong> ${user.email}</p>
+      <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+    `);
+
+    res.json({ success: true, username: user.username, email: user.email || '' });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Internal server error during login.' });
+  }
 });
 
 app.get('/api/history', async (req, res) => {
@@ -300,7 +355,6 @@ function createRoomState(roomCode) {
     },
     messages: [],
     timerInterval: null,
-    botBidTimeout: null,
     lastActivity: Date.now(), // Track room activity
     skipVotes: [], // Track users voting to skip the current player
     isPaused: false, // Host pause status
@@ -331,7 +385,6 @@ function broadcastState(roomCode) {
     state.lastActivity = Date.now(); // Keep room alive on update
     const broadcastPayload = { ...state };
     delete broadcastPayload.timerInterval;
-    delete broadcastPayload.botBidTimeout;
     delete broadcastPayload.pool; // Do not broadcast the 9700-player pool to fix severe lag
     io.to(roomCode).emit('STATE_UPDATE', broadcastPayload);
   }
@@ -359,11 +412,6 @@ function handleSold(roomCode) {
   const state = ROOMS.get(roomCode);
   if (!state) return;
 
-  if (state.botBidTimeout) {
-    clearTimeout(state.botBidTimeout);
-    state.botBidTimeout = null;
-  }
-
   state.phase = 'SOLD';
   if (state.highestBidder) {
     const winner = state.users.find(u => u.id === state.highestBidder);
@@ -383,17 +431,12 @@ function handleSold(roomCode) {
 
   setTimeout(() => {
     nextPlayer(roomCode);
-  }, 2000); // Celebratory transition: 2000ms
+  }, 300); // Quick player shift transition: 300ms
 }
 
 function handleSkip(roomCode, reason = "skipped") {
   const state = ROOMS.get(roomCode);
   if (!state) return;
-
-  if (state.botBidTimeout) {
-    clearTimeout(state.botBidTimeout);
-    state.botBidTimeout = null;
-  }
 
   clearInterval(state.timerInterval);
   state.phase = 'SOLD'; // briefly show status transition
@@ -403,7 +446,7 @@ function handleSkip(roomCode, reason = "skipped") {
 
   setTimeout(() => {
     nextPlayer(roomCode);
-  }, 2000); // Transition: 2000ms
+  }, 300); // Quick player shift transition: 300ms
 }
 
 function setNextNominator(state) {
@@ -520,112 +563,9 @@ async function finalizeAuction(state, roomCode) {
   broadcastState(roomCode);
 }
 
-const AI_BOT_NAMES = [
-  'Pep Guardiola (AI)',
-  'Carlo Ancelotti (AI)',
-  'Jürgen Klopp (AI)',
-  'José Mourinho (AI)',
-  'Mikel Arteta (AI)',
-  'Zinedine Zidane (AI)',
-  'Diego Simeone (AI)',
-  'Xabi Alonso (AI)'
-];
-
-function scheduleBotBidding(state, roomCode) {
-  if (!state || state.phase !== 'BIDDING' || !state.currentPlayer || state.isPaused) return;
-
-  if (state.botBidTimeout) {
-    clearTimeout(state.botBidTimeout);
-    state.botBidTimeout = null;
-  }
-
-  // Find bots in the room that are not the current highest bidder
-  const bots = state.users.filter(u => u.isBot && u.id !== state.highestBidder);
-  if (bots.length === 0) return;
-
-  const player = state.currentPlayer;
-  const isFirstBid = state.highestBidder === null;
-  const inc = 5;
-  const targetBid = isFirstBid
-    ? (state.config.enableFirstBidBasePrice !== false ? player.basePrice : player.basePrice + inc)
-    : state.currentBid + inc;
-
-  const interestedBots = [];
-  for (const bot of bots) {
-    const slotsLeft = state.config.squadSize - bot.squad.length;
-    if (slotsLeft <= 0) continue;
-
-    const hasGK = bot.squad.some(p => p.position === 'GK');
-    if (slotsLeft === 1 && !hasGK && player.position !== 'GK') continue;
-    if (player.position === 'GK' && hasGK && bot.squad.length >= 3) continue;
-
-    const clubCount = bot.squad.filter(p => p.club === player.club).length;
-    if (clubCount >= 3) continue;
-
-    const minReserve = (slotsLeft - 1) * 1;
-    if (bot.budget - targetBid < minReserve) continue;
-
-    const rating = player.rating || 75;
-    let valuationMultiplier = 1.15;
-    if (rating >= 90) valuationMultiplier = 1.85;
-    else if (rating >= 85) valuationMultiplier = 1.55;
-    else if (rating >= 80) valuationMultiplier = 1.35;
-    else if (rating >= 75) valuationMultiplier = 1.2;
-
-    const seed = ((bot.id.charCodeAt(bot.id.length - 1) || 0) + (player.id.charCodeAt(0) || 0)) % 10;
-    const botVariation = 0.9 + (seed * 0.03);
-    const maxValuation = Math.round(player.basePrice * valuationMultiplier * botVariation);
-
-    if (targetBid <= maxValuation && targetBid <= bot.budget) {
-      interestedBots.push({ bot, targetBid });
-    }
-  }
-
-  if (interestedBots.length === 0) return;
-
-  const selected = interestedBots[Math.floor(Math.random() * interestedBots.length)];
-  const delay = Math.floor(Math.random() * 1600) + 1200; // 1.2s - 2.8s natural delay
-
-  state.botBidTimeout = setTimeout(() => {
-    state.botBidTimeout = null;
-    const currentState = ROOMS.get(roomCode);
-    if (!currentState || currentState.phase !== 'BIDDING' || currentState.isPaused) return;
-    if (currentState.currentPlayer?.id !== player.id) return;
-    if (currentState.highestBidder === selected.bot.id) return;
-
-    const currentIsFirst = currentState.highestBidder === null;
-    const currentTarget = currentIsFirst
-      ? (currentState.config.enableFirstBidBasePrice !== false ? player.basePrice : player.basePrice + 5)
-      : currentState.currentBid + 5;
-
-    const err = validateBid(currentState, selected.bot, player, currentTarget);
-    if (err) return;
-
-    currentState.bidHistory.push({ bidder: currentState.highestBidder, bid: currentState.currentBid });
-    currentState.currentBid = currentTarget;
-    currentState.highestBidder = selected.bot.id;
-
-    if (currentState.timer < 10) {
-      currentState.timer = 10;
-      io.to(roomCode).emit('TIMER_UPDATE', currentState.timer);
-    }
-
-    addMessage(currentState, `🤖 ${selected.bot.name} bids $${currentTarget}M!`);
-    broadcastState(roomCode);
-
-    processAutoBids(currentState, roomCode);
-    scheduleBotBidding(currentState, roomCode);
-  }, delay);
-}
-
 async function nextPlayer(roomCode) {
   const state = ROOMS.get(roomCode);
   if (!state) return;
-
-  if (state.botBidTimeout) {
-    clearTimeout(state.botBidTimeout);
-    state.botBidTimeout = null;
-  }
 
   const activeManager = setNextNominator(state);
   if (!activeManager) {
@@ -634,43 +574,11 @@ async function nextPlayer(roomCode) {
   }
 
   if (state.config.enableManualNominations) {
-    if (activeManager.isBot) {
-      state.phase = 'NOMINATION';
-      state.currentPlayer = null;
-      state.highestBidder = null;
-      addMessage(state, `🤖 ${activeManager.name} is selecting a nomination...`);
-      broadcastState(roomCode);
-
-      setTimeout(() => {
-        const curr = ROOMS.get(roomCode);
-        if (!curr || curr.phase !== 'NOMINATION') return;
-        let next = null;
-        while (curr.pool.length > 0) {
-          const candidate = curr.pool.pop();
-          if (!curr.draftedHistory.includes(candidate.id)) {
-            next = candidate;
-            break;
-          }
-        }
-        if (next) {
-          setupNewPlayer(curr, next);
-          curr.phase = 'BIDDING';
-          curr.nominatorIndex = (curr.nominatorIndex + 1) % curr.users.length;
-          addMessage(curr, `Up next: ${next.name} (Nominated by ${activeManager.name}, Base: $${curr.currentBid}M)`);
-          startTimer(roomCode);
-          broadcastState(roomCode);
-          scheduleBotBidding(curr, roomCode);
-        } else {
-          finalizeAuction(curr, roomCode);
-        }
-      }, 1400);
-    } else {
-      state.phase = 'NOMINATION';
-      state.currentPlayer = null;
-      state.highestBidder = null;
-      addMessage(state, `Waiting for ${activeManager.name} to nominate a player...`);
-      broadcastState(roomCode);
-    }
+    state.phase = 'NOMINATION';
+    state.currentPlayer = null;
+    state.highestBidder = null;
+    addMessage(state, `Waiting for ${activeManager.name} to nominate a player...`);
+    broadcastState(roomCode);
   } else {
     // Auto-nominate
     let next = null;
@@ -696,7 +604,6 @@ async function nextPlayer(roomCode) {
       addMessage(state, `Up next: ${next.name} (Base Price: $${state.currentBid}M)`);
       startTimer(roomCode);
       broadcastState(roomCode);
-      scheduleBotBidding(state, roomCode);
     } else {
       finalizeAuction(state, roomCode);
     }
@@ -704,11 +611,6 @@ async function nextPlayer(roomCode) {
 }
 
 function setupNewPlayer(state, player) {
-  if (state.botBidTimeout) {
-    clearTimeout(state.botBidTimeout);
-    state.botBidTimeout = null;
-  }
-
   player.buyNowPrice = Math.round(player.basePrice * 2.5);
   player.reservePrice = Math.round(player.basePrice * 1.1);
 
@@ -766,7 +668,6 @@ function processAutoBids(state, roomCode) {
   addMessage(state, `🤖 Auto-Bid: ${bidder.name} bids $${targetBid}M!`);
   
   processAutoBids(state, roomCode);
-  scheduleBotBidding(state, roomCode);
 }
 
 function validateBid(state, user, player, newBid, isBuyNow = false) {
@@ -904,88 +805,6 @@ io.on('connection', (socket) => {
     `);
   });
 
-  socket.on('ADD_AI_BOT', () => {
-    const code = socket.roomCode;
-    const state = ROOMS.get(code);
-    if (!state || state.phase !== 'LOBBY') return;
-    const user = state.users.find(u => u.id === socket.id);
-    if (!user || !user.isHost) return;
-
-    if (state.users.length >= 20) {
-      socket.emit('ERROR', 'Room has reached maximum capacity.');
-      return;
-    }
-
-    const usedNames = new Set(state.users.map(u => u.name));
-    const availableName = AI_BOT_NAMES.find(name => !usedNames.has(name)) || `AI Manager ${state.users.length + 1}`;
-
-    const botId = 'bot_' + crypto.randomBytes(4).toString('hex');
-    const botUser = {
-      id: botId,
-      name: availableName,
-      email: '',
-      budget: state.config.budget || 300,
-      squad: [],
-      isHost: false,
-      isBot: true,
-      connected: true
-    };
-
-    state.users.push(botUser);
-    addMessage(state, `🤖 ${botUser.name} joined the draft room.`);
-    broadcastState(code);
-  });
-
-  socket.on('FILL_AI_BOTS', () => {
-    const code = socket.roomCode;
-    const state = ROOMS.get(code);
-    if (!state || state.phase !== 'LOBBY') return;
-    const user = state.users.find(u => u.id === socket.id);
-    if (!user || !user.isHost) return;
-
-    const targetCount = 4;
-    let added = 0;
-    while (state.users.length < targetCount) {
-      const usedNames = new Set(state.users.map(u => u.name));
-      const availableName = AI_BOT_NAMES.find(name => !usedNames.has(name)) || `AI Manager ${state.users.length + 1}`;
-      const botId = 'bot_' + crypto.randomBytes(4).toString('hex');
-      state.users.push({
-        id: botId,
-        name: availableName,
-        email: '',
-        budget: state.config.budget || 300,
-        squad: [],
-        isHost: false,
-        isBot: true,
-        connected: true
-      });
-      added++;
-    }
-    if (added > 0) {
-      addMessage(state, `🤖 Added ${added} AI Bot Opponents to the draft!`);
-      broadcastState(code);
-    } else {
-      socket.emit('ERROR', 'Room already has 4 or more managers.');
-    }
-  });
-
-  socket.on('REMOVE_AI_BOT', () => {
-    const code = socket.roomCode;
-    const state = ROOMS.get(code);
-    if (!state || state.phase !== 'LOBBY') return;
-    const user = state.users.find(u => u.id === socket.id);
-    if (!user || !user.isHost) return;
-
-    const botIdx = state.users.map(u => u.isBot).lastIndexOf(true);
-    if (botIdx !== -1) {
-      const removed = state.users.splice(botIdx, 1)[0];
-      addMessage(state, `🗑️ ${removed.name} removed from room.`);
-      broadcastState(code);
-    } else {
-      socket.emit('ERROR', 'No AI bots to remove.');
-    }
-  });
-
   socket.on('START_AUCTION', (data) => {
     const code = socket.roomCode;
     const state = ROOMS.get(code);
@@ -1005,10 +824,7 @@ io.on('connection', (socket) => {
       state.config.enableFirstBidBasePrice = data.enableFirstBidBasePrice !== false;
       state.config.playerPool = data.playerPool || 'special';
       
-      const poolArray = Array.isArray(data.pool) && data.pool.length > 0 
-        ? data.pool 
-        : getPlayersDatabase(state.config.playerPool);
-      state.pool = [...poolArray].sort(() => Math.random() - 0.5);
+      state.pool = data.pool.sort(() => Math.random() - 0.5);
       state.users.forEach(u => u.budget = state.config.budget);
       state.messages = [];
       state.draftedHistory = [];
@@ -1090,7 +906,6 @@ io.on('connection', (socket) => {
     addMessage(state, `Up next: ${player.name} (Base Price: $${state.currentBid}M)`);
     startTimer(code);
     broadcastState(code);
-    scheduleBotBidding(state, code);
   });
 
   socket.on('PLACE_BID', (incrementAmount) => {
@@ -1148,7 +963,6 @@ io.on('connection', (socket) => {
     
     processAutoBids(state, code);
     broadcastState(code);
-    scheduleBotBidding(state, code);
   });
 
   socket.on('SET_AUTO_BID', (limit) => {
@@ -1347,7 +1161,6 @@ io.on('connection', (socket) => {
     const anyConnected = state.users.some(u => u.connected);
     if (!anyConnected || state.users.length === 0) {
       if (state.timerInterval) clearInterval(state.timerInterval);
-      if (state.botBidTimeout) clearTimeout(state.botBidTimeout);
       ROOMS.delete(code);
       console.log(`Room cleaned up: ${code}`);
     } else {
@@ -1389,7 +1202,6 @@ io.on('connection', (socket) => {
     const anyConnected = state.users.some(u => u.connected);
     if (!anyConnected) {
       if (state.timerInterval) clearInterval(state.timerInterval);
-      if (state.botBidTimeout) clearTimeout(state.botBidTimeout);
       ROOMS.delete(code);
       console.log(`Room cleaned up: ${code}`);
     } else {

@@ -6,22 +6,12 @@
   },
   {
     "username": "testuser",
-    "password": "password",
+    "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
     "email": "test@example.com"
   },
   {
     "username": "testuser_antigravity",
     "password": "ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f",
     "email": "test_anti@example.com"
-  },
-  {
-    "username": "Guest_17019",
-    "password": "b1b10b62f26e1b7327daa42925c6100c59cf4d23ac12e063dd6e970c1e6b7ebc",
-    "email": "guest_17019@footballauction.com"
-  },
-  {
-    "username": "Guest_03531",
-    "password": "cc90bb5ac3ccfcae57806d60de93a9adf602f8308844df00bbfdd5d6f0ba76ad",
-    "email": "guest_03531@footballauction.com"
   }
 ]
