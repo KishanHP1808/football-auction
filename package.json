@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "build": "node -e \"console.log('Build complete')\""
   },
   "engines": {
     "node": ">=18.0.0"
@@ -16,5 +17,8 @@
     "nodemailer": "^9.0.3",
     "pdf-parse": "^2.4.5",
     "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }

@@ -70,6 +70,20 @@ function copyRoomCode() {
     .catch(() => showToast("Failed to copy code."));
 }
 
+function updateAuthUI(username, email) {
+  currentUser = username;
+  currentEmail = email || '';
+
+  if ($('#login-overlay')) $('#login-overlay').style.display = 'none';
+  if ($('#user-profile')) {
+    $('#user-profile').innerHTML = `👤 ${escapeHTML(currentUser)}`;
+    $('#user-profile').title = `Signed in as ${escapeHTML(currentUser)}`;
+  }
+  if ($('#logout-btn')) $('#logout-btn').style.display = 'inline-flex';
+  if ($('#mobile-logout-btn')) $('#mobile-logout-btn').style.display = 'inline-flex';
+  if ($('#manager-name')) $('#manager-name').value = currentUser;
+}
+
 async function handleLogin() {
   const username = $('#login-username').value.trim();
   const password = $('#login-password').value.trim();
@@ -89,13 +103,8 @@ async function handleLogin() {
     });
     const data = await res.json();
     if (res.ok && data.success) {
-      currentUser = data.username;
-      currentEmail = data.email || '';
       errDiv.style.display = 'none';
-      $('#login-overlay').style.display = 'none';
-      $('#user-profile').innerHTML = `👤 ${escapeHTML(currentUser)}`;
-      if ($('#logout-btn')) $('#logout-btn').style.display = 'flex';
-      $('#manager-name').value = currentUser;
+      updateAuthUI(data.username, data.email || '');
 
       // Save credentials for auto login on same device
       localStorage.setItem('auction_username', currentUser);
@@ -113,7 +122,27 @@ async function handleLogin() {
   }
 }
 
+function handleGuestLogin() {
+  const guestName = 'Manager_' + Math.floor(1000 + Math.random() * 9000);
+  const guestEmail = `${guestName.toLowerCase()}@auction.local`;
+  
+  updateAuthUI(guestName, guestEmail);
+
+  localStorage.setItem('auction_username', currentUser);
+  localStorage.setItem('auction_email', currentEmail);
+
+  showToast(`Welcome, ${currentUser}! Joined as guest.`);
+}
+
 function handleLogout() {
+  if (currentRoomCode) {
+    if (!confirm("You are currently in an active draft room. Do you want to sign out and leave the room?")) {
+      return;
+    }
+    try {
+      socket.emit('LEAVE_ROOM');
+    } catch (e) {}
+  }
   localStorage.removeItem('auction_username');
   localStorage.removeItem('auction_email');
   currentUser = null;
@@ -515,18 +544,41 @@ function renderLobby() {
   if ($('#summary-pool')) $('#summary-pool').textContent = poolSize;
   if ($('#connected-count')) $('#connected-count').textContent = globalState.users.length;
 
-  const list = $('#connected-players-list');
-  if (list) {
-    list.innerHTML = globalState.users.map(u =>
-      `<li>${u.isHost ? '👑 ' : '👤 '} <b>${escapeHTML(u.name)}</b> ${u.id === myId ? '(You)' : ''}</li>`
-    ).join('');
-  }
-
   const me = globalState.users.find(u => u.id === myId);
   if (me && me.isHost !== isHost) {
     isHost = me.isHost;
     if (isHost && $('#start-btn')) $('#start-btn').style.display = 'block';
   }
+
+  const botButtons = $('#bot-control-buttons');
+  if (botButtons) {
+    botButtons.style.display = isHost ? 'flex' : 'none';
+  }
+
+  const list = $('#connected-players-list');
+  if (list) {
+    list.innerHTML = globalState.users.map(u => {
+      const badge = u.isHost ? '👑 ' : (u.isBot ? '🤖 ' : '👤 ');
+      const isMeTag = u.id === myId ? '<span style="color:var(--primary-neon)">(You)</span>' : '';
+      const botTag = u.isBot ? '<span style="color:var(--text-secondary); font-size:0.75rem; background:rgba(0,242,254,0.1); padding:1px 6px; border-radius:4px; border:1px solid rgba(0,242,254,0.2);">AI Opponent</span>' : '';
+      return `<li style="display:flex; align-items:center; gap:0.4rem; padding:0.2rem 0;">${badge}<b>${escapeHTML(u.name)}</b> ${isMeTag} ${botTag}</li>`;
+    }).join('');
+  }
+}
+
+function addAIBot() {
+  if (!isHost) return;
+  socket.emit('ADD_AI_BOT');
+}
+
+function fillAIBots() {
+  if (!isHost) return;
+  socket.emit('FILL_AI_BOTS');
+}
+
+function removeAIBot() {
+  if (!isHost) return;
+  socket.emit('REMOVE_AI_BOT');
 }
 
 function startAuction() {
@@ -1655,12 +1707,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedUser = localStorage.getItem('auction_username');
   const savedEmail = localStorage.getItem('auction_email');
   if (savedUser) {
-    currentUser = savedUser;
-    currentEmail = savedEmail || '';
-    if ($('#login-overlay')) $('#login-overlay').style.display = 'none';
-    if ($('#user-profile')) $('#user-profile').innerHTML = `👤 ${escapeHTML(currentUser)}`;
-    if ($('#manager-name')) $('#manager-name').value = currentUser;
-    showToast(`Welcome back, ${currentUser}!`);
+    updateAuthUI(savedUser, savedEmail);
+    showToast(`Welcome back, ${savedUser}!`);
     loadDraftHistory();
   }
 

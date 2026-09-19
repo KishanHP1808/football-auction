@@ -1148,11 +1148,25 @@ function applyPresentPerformance(p) {
 
 // Helper to retrieve players dynamically with present performance applied
 function getPlayersDatabase(mode = 'special') {
+  let wcPlayers = (typeof WC2026_PLAYERS !== 'undefined') ? WC2026_PLAYERS : [];
+  if ((!wcPlayers || wcPlayers.length === 0) && typeof require !== 'undefined') {
+    try {
+      const imported = require('./wc2026_players.js');
+      wcPlayers = imported.WC2026_PLAYERS || imported;
+    } catch (e) {
+      try {
+        const imported2 = require('../wc2026_players.js');
+        wcPlayers = imported2.WC2026_PLAYERS || imported2;
+      } catch (err) {}
+    }
+  }
+
   let list = [];
   if (mode === 'wc2026_elite') {
-    list = typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS.filter(p => (p.rating || 0) >= 80) : [];
+    list = (wcPlayers && wcPlayers.length > 0) ? wcPlayers.filter(p => (p.rating || 0) >= 80) : [];
+    if (list.length === 0) list = INITIAL_PLAYERS;
   } else if (mode === 'wc2026' || mode === 'wc2026_all') {
-    list = typeof WC2026_PLAYERS !== 'undefined' ? WC2026_PLAYERS : [];
+    list = (wcPlayers && wcPlayers.length > 0) ? wcPlayers : INITIAL_PLAYERS;
   } else {
     list = INITIAL_PLAYERS;
   }

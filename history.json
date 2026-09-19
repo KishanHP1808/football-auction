@@ -1,5 +1,41 @@
 [
   {
+    "username": "Jürgen Klopp (AI)",
+    "timestamp": "2026-09-19T17:20:31.550Z",
+    "squad": [],
+    "budgetLeft": 300,
+    "avgRating": 0,
+    "careerPoints": 0,
+    "score": 0
+  },
+  {
+    "username": "Carlo Ancelotti (AI)",
+    "timestamp": "2026-09-19T17:20:31.550Z",
+    "squad": [],
+    "budgetLeft": 300,
+    "avgRating": 0,
+    "careerPoints": 0,
+    "score": 0
+  },
+  {
+    "username": "Pep Guardiola (AI)",
+    "timestamp": "2026-09-19T17:20:31.550Z",
+    "squad": [],
+    "budgetLeft": 300,
+    "avgRating": 0,
+    "careerPoints": 0,
+    "score": 0
+  },
+  {
+    "username": "HostManager",
+    "timestamp": "2026-09-19T17:20:31.549Z",
+    "squad": [],
+    "budgetLeft": 300,
+    "avgRating": 0,
+    "careerPoints": 0,
+    "score": 0
+  },
+  {
     "username": "testuser",
     "timestamp": "2026-07-13T09:27:28.154Z",
     "squad": [

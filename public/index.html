@@ -16,7 +16,7 @@
 
 <body>
   <!-- Sign In overlay -->
-  <div id="login-overlay" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(8,11,17,0.98); z-index:9999; display:flex; align-items:center; justify-content:center;">
+  <div id="login-overlay" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(8,11,17,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:9999; display:flex; align-items:center; justify-content:center;">
     <div class="panel" style="width:100%; max-width:400px; padding:2.5rem; text-align:center; box-shadow:0 0 40px rgba(0, 242, 254, 0.15);">
       <div style="font-size:2.5rem; margin-bottom:1rem;">⚽🏆</div>
       <h2 style="margin-bottom:0.5rem; color:var(--text-primary); font-size:1.8rem;">Football Auction</h2>
@@ -38,7 +38,8 @@
       <div id="login-error" style="color:var(--danger-neon); font-size:0.8rem; margin-bottom:1.25rem; text-align:left; display:none;"></div>
       
       <button class="btn-primary" onclick="handleLogin()" style="margin-bottom:0.75rem;">Sign In</button>
-      <button class="btn-secondary" onclick="handleRegister()" style="width:100%;">Create Account</button>
+      <button class="btn-secondary" onclick="handleRegister()" style="width:100%; margin-bottom:0.75rem;">Create Account</button>
+      <button class="btn-secondary" onclick="handleGuestLogin()" style="width:100%; border-color:rgba(0, 242, 254, 0.4); color:var(--primary-neon);">⚽ Quick Play as Guest</button>
     </div>
   </div>
 
@@ -52,7 +53,10 @@
       </div>
       <div class="header-right">
         <span id="user-profile" class="user-profile-badge">👤 Guest</span>
-        <button class="logout-btn" id="logout-btn" onclick="handleLogout()" title="Logout" style="display:none;">🚪</button>
+        <button class="logout-btn" id="logout-btn" onclick="handleLogout()" title="Log Out" style="display:none;">
+          <span class="logout-icon">🚪</span>
+          <span class="logout-text">Log Out</span>
+        </button>
         <button class="sound-toggle-btn" id="sound-btn" onclick="toggleSound()" title="Toggle Sound">🔊</button>
         <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileNav()" aria-label="Toggle menu">
           <span></span><span></span><span></span>
@@ -67,6 +71,7 @@
         <button class="nav-btn" data-view="history-view" id="nav-history">Draft History</button>
         <button class="nav-btn" data-view="summary-view" disabled id="nav-summary">Summary</button>
         <button class="leave-btn" id="leave-room-btn" onclick="leaveRoom()" style="display:none;">Exit Room</button>
+        <button class="nav-btn mobile-logout-btn" id="mobile-logout-btn" onclick="handleLogout()" style="display:none;">🚪 Log Out</button>
       </nav>
     </header>
 
@@ -153,7 +158,14 @@
               </div>
 
               <div style="margin-top:1.5rem; padding:1rem; background:rgba(0,242,254,0.03); border-radius:8px; border:1px dashed var(--glass-border)">
-                <h4 style="color:var(--primary-neon); margin-bottom:0.5rem">👥 Connected Players (<span id="connected-count">0</span>)</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
+                  <h4 style="color:var(--primary-neon); margin-bottom:0">👥 Connected Managers (<span id="connected-count">0</span>)</h4>
+                  <div id="bot-control-buttons" style="display:none; gap:0.4rem; flex-wrap:wrap;">
+                    <button type="button" class="btn-secondary" onclick="addAIBot()" style="padding:0.25rem 0.6rem; font-size:0.75rem; width:auto; border-color:var(--primary-neon); color:var(--primary-neon);" title="Add 1 AI Bot Manager">🤖 + AI Bot</button>
+                    <button type="button" class="btn-secondary" onclick="fillAIBots()" style="padding:0.25rem 0.6rem; font-size:0.75rem; width:auto; border-color:var(--success-neon); color:var(--success-neon);" title="Fill room to 4 managers with AI Bots">⚡ Fill 4 Teams</button>
+                    <button type="button" class="btn-secondary" onclick="removeAIBot()" style="padding:0.25rem 0.6rem; font-size:0.75rem; width:auto; border-color:var(--danger-neon); color:var(--danger-neon);" title="Remove 1 AI Bot">🗑️ - Bot</button>
+                  </div>
+                </div>
                 <ul id="connected-players-list" style="list-style:none; font-size:0.85rem; color:var(--text-secondary); display:flex; flex-direction:column; gap:0.4rem">
                   <!-- Connected players appear here -->
                 </ul>

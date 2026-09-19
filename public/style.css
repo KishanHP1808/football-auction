@@ -31,9 +31,13 @@
 body {
   background-color: var(--bg-deep);
   background-image: 
-    radial-gradient(at 0% 0%, rgba(0, 242, 254, 0.05) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(79, 172, 254, 0.05) 0px, transparent 50%),
-    radial-gradient(at 50% 50%, rgba(0, 255, 135, 0.02) 0px, transparent 50%);
+    linear-gradient(180deg, rgba(8, 11, 17, 0.72) 0%, rgba(8, 11, 17, 0.82) 40%, rgba(8, 11, 17, 0.92) 100%),
+    radial-gradient(ellipse at 50% 15%, rgba(0, 255, 135, 0.1) 0%, transparent 60%),
+    url('/football_field_bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--text-primary);
   font-family: var(--font-sans);
   min-height: 100vh;
@@ -1269,23 +1273,52 @@ table.db-table tr:hover {
 }
 
 .logout-btn {
-  background: transparent;
-  border: 1px solid rgba(255, 0, 127, 0.2);
+  background: rgba(255, 0, 127, 0.08);
+  border: 1px solid rgba(255, 0, 127, 0.35);
   border-radius: 8px;
-  width: 32px;
-  height: 32px;
-  display: flex;
+  padding: 0.4rem 0.8rem;
+  height: 36px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   cursor: pointer;
-  color: var(--danger-neon);
-  transition: all 0.3s ease;
-  font-size: 0.85rem;
+  color: #ff3366;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.03em;
+  transition: all 0.25s ease;
+  white-space: nowrap;
 }
 
 .logout-btn:hover {
   border-color: var(--danger-neon);
-  background: rgba(255, 0, 127, 0.05);
+  background: rgba(255, 0, 127, 0.22);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(255, 0, 127, 0.4);
+  transform: translateY(-1px);
+}
+
+.logout-btn .logout-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.logout-btn .logout-text {
+  font-size: 0.8rem;
+}
+
+.mobile-logout-btn {
+  color: var(--danger-neon) !important;
+  border: 1px solid rgba(255, 0, 127, 0.35) !important;
+  background: rgba(255, 0, 127, 0.06) !important;
+}
+
+.mobile-logout-btn:hover {
+  background: rgba(255, 0, 127, 0.2) !important;
+  border-color: var(--danger-neon) !important;
+  color: #ffffff !important;
 }
 
 .leave-btn {
@@ -1428,6 +1461,16 @@ table.db-table tr:hover {
     max-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .logout-btn .logout-text {
+    display: none;
+  }
+
+  .logout-btn {
+    padding: 0;
+    width: 34px;
+    height: 34px;
   }
   
   /* Mobile nav: full-width dropdown below header */
