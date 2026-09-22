@@ -3,7 +3,7 @@ const http = require('http');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
 
-const { getPlayerCareerFantasyPoints } = require('./public/players.js');
+const { getPlayerCareerFantasyPoints, getPlayersDatabase } = require('./public/players.js');
 const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
@@ -58,11 +58,13 @@ async function loadUsers() {
   return cachedUsers;
 }
 
-function saveUsers(users) {
+async function saveUsers(users) {
   cachedUsers = users;
-  fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), 'utf8', (err) => {
-    if (err) console.error("Error saving users asynchronously:", err.message);
-  });
+  try {
+    await fs.promises.writeFile(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+  } catch (err) {
+    console.error("Error saving users to disk:", err.message);
+  }
 }
 
 async function loadHistory() {
@@ -231,84 +233,154 @@ async function sendAdminNotification(subject, htmlContent) {
   }
 }
 
+// ── System Health & AI Accelerator Status ──
+app.get('/api/health', (req, res) => {
+  const hasNvidiaKey = Boolean(process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim().length > 0);
+  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0);
+  const hasSmtp = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    activeRooms: ROOMS.size,
+    aiAccelerator: {
+      nvidiaNIM: hasNvidiaKey ? 'configured' : 'standby',
+      geminiEngine: hasGeminiKey ? 'configured' : 'standby'
+    },
+    smtpConfigured: hasSmtp
+  });
+});
+
 app.post('/api/register', async (req, res) => {
   try {
-    const { username, password, email } = req.body || {};
-    const trimmedUser = (username || '').trim();
-    const trimmedPass = (password || '').trim();
-    const trimmedEmail = (email || '').trim().toLowerCase();
+    const rawUsername = req.body.username;
+    const rawEmail = req.body.email;
+    const rawPassword = req.body.password;
 
-    if (!trimmedUser || !trimmedPass || !trimmedEmail) {
-      return res.status(400).json({ error: 'Username, password and email are all required.' });
+    const username = (rawUsername || '').trim();
+    const email = (rawEmail || '').trim().toLowerCase();
+    const password = (rawPassword || '').trim();
+
+    if (!username || !password || !email) {
+      return res.status(400).json({ error: 'Username, email address, and password are all required.' });
     }
 
-    if (trimmedUser.length < 2) {
+    if (username.length < 2) {
       return res.status(400).json({ error: 'Username must be at least 2 characters long.' });
     }
 
-    if (trimmedPass.length < 3) {
-      return res.status(400).json({ error: 'Password must be at least 3 characters long.' });
+    if (username.length > 25) {
+      return res.status(400).json({ error: 'Username must be 25 characters or fewer.' });
     }
 
+    // Username character validation
+    const usernameRegex = /^[a-zA-Z0-9_\- ]+$/;
+    if (!usernameRegex.test(username)) {
+      return res.status(400).json({ error: 'Username can only contain letters, numbers, spaces, underscores, or hyphens.' });
+    }
+
+    // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Please enter a valid email address (e.g. manager@example.com).' });
+    }
+
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters long.' });
     }
 
     const users = await loadUsers();
-    if (users.some(u => u.username && u.username.toLowerCase() === trimmedUser.toLowerCase())) {
-      return res.status(400).json({ error: 'Username already taken. Please choose another.' });
+    const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+
+    // Check if account with same email already exists (case-insensitive)
+    const existingUserByEmail = users.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
+    if (existingUserByEmail) {
+      // If password matches the existing account, authenticate the user smoothly
+      if (existingUserByEmail.password === hashedPassword || existingUserByEmail.password === password) {
+        console.log(`[Auth] Existing account with email "${email}" re-authenticated via register endpoint.`);
+        return res.json({
+          success: true,
+          username: existingUserByEmail.username,
+          email: existingUserByEmail.email,
+          alreadyRegistered: true,
+          message: `Welcome back, ${existingUserByEmail.username}! Signed into your registered account.`
+        });
+      }
+
+      return res.status(400).json({
+        error: `An account with the email "${email}" already exists. Please sign in or use "Forgot Password".`,
+        code: 'EMAIL_EXISTS',
+        email
+      });
     }
 
-    if (users.some(u => u.email && u.email.toLowerCase() === trimmedEmail)) {
-      return res.status(400).json({ error: 'An account with this email address already exists.' });
+    // Check if username taken (case-insensitive)
+    const existingUserByName = users.find(u => (u.username || '').toLowerCase() === username.toLowerCase());
+    if (existingUserByName) {
+      // If password matches the existing username's account, authenticate smoothly
+      if (existingUserByName.password === hashedPassword || existingUserByName.password === password) {
+        console.log(`[Auth] Existing account with username "${username}" re-authenticated via register endpoint.`);
+        return res.json({
+          success: true,
+          username: existingUserByName.username,
+          email: existingUserByName.email || email,
+          alreadyRegistered: true,
+          message: `Welcome back, ${existingUserByName.username}! Signed into your registered account.`
+        });
+      }
+
+      return res.status(400).json({
+        error: `The username "${username}" is already taken. Please choose another username or sign in.`,
+        code: 'USERNAME_TAKEN',
+        username
+      });
     }
 
-    const hashedPassword = crypto.createHash('sha256').update(trimmedPass).digest('hex');
-    const newUser = { username: trimmedUser, password: hashedPassword, email: trimmedEmail };
+    const newUser = { username, password: hashedPassword, email, createdAt: new Date().toISOString() };
     users.push(newUser);
-    saveUsers(users);
+    await saveUsers(users);
+
+    console.log(`[Auth] Registered new account: "${username}" (${email})`);
 
     sendAdminNotification('📝 New User Registered', `
       <h3>New User Registration</h3>
-      <p><strong>Username:</strong> ${trimmedUser}</p>
-      <p><strong>Email:</strong> ${trimmedEmail}</p>
+      <p><strong>Username:</strong> ${username}</p>
+      <p><strong>Email:</strong> ${email}</p>
       <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
-    `);
+    `).catch(e => console.error("Admin notification error:", e.message));
 
-    res.json({ success: true, username: trimmedUser, email: trimmedEmail });
+    return res.json({ success: true, username: newUser.username, email: newUser.email });
   } catch (err) {
-    console.error('Registration error:', err);
-    res.status(500).json({ error: 'Internal server error during registration.' });
+    console.error('[Register Error]', err);
+    return res.status(500).json({ error: 'Server error during account creation. Please try again.' });
   }
 });
 
 app.post('/api/login', async (req, res) => {
   try {
-    const { username, password } = req.body || {};
-    const trimmedUser = (username || '').trim();
-    const trimmedPass = (password || '').trim();
+    const rawIdentifier = req.body.username || req.body.identifier;
+    const rawPassword = req.body.password;
 
-    if (!trimmedUser || !trimmedPass) {
-      return res.status(400).json({ error: 'Username and password are required.' });
+    const identifier = (rawIdentifier || '').trim();
+    const password = (rawPassword || '').trim();
+
+    if (!identifier || !password) {
+      return res.status(400).json({ error: 'Please enter your username (or email) and password.' });
     }
 
     const users = await loadUsers();
-    const hashedPassword = crypto.createHash('sha256').update(trimmedPass).digest('hex');
-    const user = users.find(u => 
-      u.username && 
-      u.username.toLowerCase() === trimmedUser.toLowerCase() && 
-      (u.password === hashedPassword || u.password === trimmedPass)
+    const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+
+    // Allow logging in with either username OR registered email (case-insensitive)
+    const user = users.find(u =>
+      ((u.username && u.username.toLowerCase() === identifier.toLowerCase()) ||
+       (u.email && u.email.toLowerCase() === identifier.toLowerCase())) &&
+      (u.password === hashedPassword || u.password === password)
     );
 
     if (!user) {
-      return res.status(400).json({ error: 'Invalid username or password.' });
-    }
-
-    // Auto-migrate legacy plain text passwords to secure SHA-256 hash
-    if (user.password === trimmedPass && user.password !== hashedPassword) {
-      user.password = hashedPassword;
-      saveUsers(users);
+      return res.status(400).json({ error: 'Invalid username/email or password.' });
     }
 
     sendAdminNotification('🔑 User Logged In', `
@@ -316,12 +388,213 @@ app.post('/api/login', async (req, res) => {
       <p><strong>Username:</strong> ${user.username}</p>
       <p><strong>Email:</strong> ${user.email}</p>
       <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+    `).catch(e => console.error("Admin notification error:", e.message));
+
+    return res.json({ success: true, username: user.username, email: user.email });
+  } catch (err) {
+    console.error('[Login Error]', err);
+    return res.status(500).json({ error: 'Server error during login.' });
+  }
+});
+
+// ── Password Reset System & Formalities ──
+const passwordResetTokens = new Map();
+
+function maskEmail(email) {
+  if (!email || !email.includes('@')) return email || '';
+  const [user, domain] = email.split('@');
+  if (user.length <= 2) {
+    return `${user[0]}***@${domain}`;
+  }
+  return `${user.slice(0, 2)}***${user.slice(-1)}@${domain}`;
+}
+
+async function sendPasswordResetEmail(username, email, resetCode) {
+  if (!email) return { success: false, error: 'No email provided' };
+  try {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.log(`[Password Reset] SMTP not configured. OTP for ${username} (${email}) is: ${resetCode}`);
+      return { success: true, previewUrl: null, code: resetCode };
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+
+    const mailOptions = {
+      from: '"Football Auction Security" <no-reply@footballauction.com>',
+      to: email,
+      subject: `🔐 Football Auction Password Reset Code: ${resetCode}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; padding: 24px; border: 1px solid #1e293b; border-radius: 12px; background-color: #0b1522; color: #f8fafc;">
+          <div style="text-align: center; border-bottom: 2px solid #00ff87; padding-bottom: 16px;">
+            <h1 style="color: #00ff87; margin: 0; font-size: 24px;">⚽ Football Auction Security</h1>
+            <p style="color: #94a3b8; margin: 6px 0 0 0; font-size: 14px;">Password Recovery Request</p>
+          </div>
+          <div style="margin: 24px 0;">
+            <p style="font-size: 15px; color: #e2e8f0;">Hello <strong>${username}</strong>,</p>
+            <p style="color: #94a3b8; font-size: 14px; line-height: 1.5;">We received a request to recover or reset the password for your Football Auction manager account.</p>
+            <div style="text-align: center; margin: 28px 0; background: #06101a; border: 1.5px solid #00f2fe; border-radius: 10px; padding: 20px;">
+              <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: #00f2fe; display: block; margin-bottom: 8px;">6-Digit Verification Code</span>
+              <span style="font-size: 38px; font-weight: 800; letter-spacing: 8px; color: #00ff87; font-family: monospace;">${resetCode}</span>
+              <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b;">Valid for the next 15 minutes</p>
+            </div>
+            <p style="color: #94a3b8; font-size: 13px;">Enter this code into the password recovery screen to securely set a new password. If you did not make this request, your account remains secure and you can disregard this message.</p>
+          </div>
+          <div style="border-top: 1px solid #1e293b; padding-top: 16px; text-align: center; font-size: 12px; color: #64748b;">
+            &copy; ${new Date().getFullYear()} Football Auction Arena &bull; Live Transfer Bidding Platform
+          </div>
+        </div>
+      `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    console.log(`[Password Reset] Email sent to ${email}. MessageId: ${info.messageId}`);
+    return { success: true, previewUrl };
+  } catch (err) {
+    console.error(`[Password Reset Error] Failed to send email to ${email}:`, err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+app.post('/api/forgot-password/request', async (req, res) => {
+  try {
+    const { identifier } = req.body;
+    if (!identifier || typeof identifier !== 'string' || !identifier.trim()) {
+      return res.status(400).json({ error: 'Please enter your username or registered email address.' });
+    }
+    const cleanId = identifier.trim().toLowerCase();
+    const users = await loadUsers();
+    const user = users.find(u => 
+      (u.username && u.username.toLowerCase() === cleanId) || 
+      (u.email && u.email.toLowerCase() === cleanId)
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: 'No manager account was found matching this username or email.' });
+    }
+
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const tokenData = {
+      code: resetCode,
+      username: user.username,
+      email: user.email,
+      expiresAt: Date.now() + 15 * 60 * 1000,
+      verified: false
+    };
+    passwordResetTokens.set(user.username.toLowerCase(), tokenData);
+
+    const emailRes = await sendPasswordResetEmail(user.username, user.email, resetCode);
+
+    sendAdminNotification('🔐 Password Reset Requested', `
+      <h3>Password Reset Requested</h3>
+      <p><strong>Username:</strong> ${user.username}</p>
+      <p><strong>Email:</strong> ${user.email}</p>
+      <p><strong>Verification Code:</strong> ${resetCode}</p>
+      <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
     `);
 
-    res.json({ success: true, username: user.username, email: user.email || '' });
+    const hasSmtp = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+    return res.json({
+      success: true,
+      username: user.username,
+      maskedEmail: maskEmail(user.email),
+      codePreview: resetCode,
+      hasSmtp: hasSmtp,
+      message: hasSmtp
+        ? `A 6-digit verification code was sent to ${maskEmail(user.email)}.`
+        : `Verification code generated for ${maskEmail(user.email)}.`
+    });
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: 'Internal server error during login.' });
+    console.error('Error handling /api/forgot-password/request:', err);
+    return res.status(500).json({ error: 'Internal server error processing reset request.' });
+  }
+});
+
+app.post('/api/forgot-password/verify', (req, res) => {
+  const { username, code } = req.body;
+  if (!username || !code) {
+    return res.status(400).json({ error: 'Username and verification code are required.' });
+  }
+  const tokenData = passwordResetTokens.get(username.trim().toLowerCase());
+  if (!tokenData) {
+    return res.status(400).json({ error: 'No active password reset request found. Please request a new code.' });
+  }
+  if (Date.now() > tokenData.expiresAt) {
+    passwordResetTokens.delete(username.trim().toLowerCase());
+    return res.status(400).json({ error: 'This verification code has expired (15 min limit). Please request a new one.' });
+  }
+  if (tokenData.code !== code.trim()) {
+    return res.status(400).json({ error: 'Incorrect 6-digit code. Please verify and re-enter.' });
+  }
+
+  tokenData.verified = true;
+  passwordResetTokens.set(username.trim().toLowerCase(), tokenData);
+
+  return res.json({
+    success: true,
+    username: tokenData.username,
+    message: 'Code verified successfully! You can now choose a new password.'
+  });
+});
+
+app.post('/api/forgot-password/reset', async (req, res) => {
+  try {
+    const { username, code, newPassword } = req.body;
+    if (!username || !code || !newPassword) {
+      return res.status(400).json({ error: 'Username, verification code, and new password are required.' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ error: 'New password must be at least 4 characters.' });
+    }
+
+    const tokenData = passwordResetTokens.get(username.trim().toLowerCase());
+    if (!tokenData) {
+      return res.status(400).json({ error: 'No active reset session found. Please request a new code.' });
+    }
+    if (Date.now() > tokenData.expiresAt) {
+      passwordResetTokens.delete(username.trim().toLowerCase());
+      return res.status(400).json({ error: 'Verification session expired. Please request a new code.' });
+    }
+    if (tokenData.code !== code.trim()) {
+      return res.status(400).json({ error: 'Incorrect verification code.' });
+    }
+
+    const users = await loadUsers();
+    const userIndex = users.findIndex(u => u.username.toLowerCase() === username.trim().toLowerCase());
+    if (userIndex === -1) {
+      return res.status(404).json({ error: 'Account could not be found in database.' });
+    }
+
+    const hashedPassword = crypto.createHash('sha256').update(newPassword).digest('hex');
+    users[userIndex].password = hashedPassword;
+    saveUsers(users);
+
+    passwordResetTokens.delete(username.trim().toLowerCase());
+
+    sendAdminNotification('✅ Password Reset Completed', `
+      <h3>Password Successfully Updated</h3>
+      <p><strong>Username:</strong> ${users[userIndex].username}</p>
+      <p><strong>Email:</strong> ${users[userIndex].email}</p>
+      <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+    `);
+
+    return res.json({
+      success: true,
+      username: users[userIndex].username,
+      email: users[userIndex].email,
+      message: 'Password has been successfully updated!'
+    });
+  } catch (err) {
+    console.error('Error handling /api/forgot-password/reset:', err);
+    return res.status(500).json({ error: 'Internal server error while updating password.' });
   }
 });
 
@@ -351,10 +624,12 @@ function createRoomState(roomCode) {
       timer: 15,
       budget: 300,
       squadSize: 11,
-      enableManualNominations: false
+      enableManualNominations: false,
+      enableFirstBidBasePrice: true
     },
     messages: [],
     timerInterval: null,
+    botBidTimeout: null,
     lastActivity: Date.now(), // Track room activity
     skipVotes: [], // Track users voting to skip the current player
     isPaused: false, // Host pause status
@@ -385,6 +660,7 @@ function broadcastState(roomCode) {
     state.lastActivity = Date.now(); // Keep room alive on update
     const broadcastPayload = { ...state };
     delete broadcastPayload.timerInterval;
+    delete broadcastPayload.botBidTimeout;
     delete broadcastPayload.pool; // Do not broadcast the 9700-player pool to fix severe lag
     io.to(roomCode).emit('STATE_UPDATE', broadcastPayload);
   }
@@ -412,7 +688,14 @@ function handleSold(roomCode) {
   const state = ROOMS.get(roomCode);
   if (!state) return;
 
+  if (state.botBidTimeout) {
+    clearTimeout(state.botBidTimeout);
+    state.botBidTimeout = null;
+  }
+
   state.phase = 'SOLD';
+  let isUnsold = true;
+  let winnerUser = null;
   if (state.highestBidder) {
     const winner = state.users.find(u => u.id === state.highestBidder);
     const reservePrice = state.currentPlayer.reservePrice || state.currentPlayer.basePrice;
@@ -420,6 +703,8 @@ function handleSold(roomCode) {
       winner.budget -= state.currentBid;
       winner.squad.push({ ...state.currentPlayer, boughtFor: state.currentBid });
       addMessage(state, `Sold! ${state.currentPlayer.name} goes to ${winner.name} for $${state.currentBid}M`);
+      isUnsold = false;
+      winnerUser = winner;
     } else if (winner) {
       // Revert budget and don't assign player
       addMessage(state, `Unsold! ${state.currentPlayer.name} did not meet the Reserve Price of $${reservePrice}M (highest bid was $${state.currentBid}M).`);
@@ -427,16 +712,32 @@ function handleSold(roomCode) {
   } else {
     addMessage(state, `Unsold! ${state.currentPlayer.name} received no bids.`);
   }
+
+  io.to(roomCode).emit('AUCTION_ANIMATION_EVENT', {
+    type: 'PLAYER_SOLD',
+    winnerId: winnerUser ? winnerUser.id : null,
+    winnerName: winnerUser ? winnerUser.name : 'Unsold',
+    finalPrice: state.currentBid,
+    playerName: state.currentPlayer ? state.currentPlayer.name : 'Player',
+    isUnsold: isUnsold,
+    isBuyNow: false
+  });
+
   broadcastState(roomCode);
 
   setTimeout(() => {
     nextPlayer(roomCode);
-  }, 300); // Quick player shift transition: 300ms
+  }, 2000); // Celebratory transition: 2000ms
 }
 
 function handleSkip(roomCode, reason = "skipped") {
   const state = ROOMS.get(roomCode);
   if (!state) return;
+
+  if (state.botBidTimeout) {
+    clearTimeout(state.botBidTimeout);
+    state.botBidTimeout = null;
+  }
 
   clearInterval(state.timerInterval);
   state.phase = 'SOLD'; // briefly show status transition
@@ -446,7 +747,7 @@ function handleSkip(roomCode, reason = "skipped") {
 
   setTimeout(() => {
     nextPlayer(roomCode);
-  }, 300); // Quick player shift transition: 300ms
+  }, 2000); // Transition: 2000ms
 }
 
 function setNextNominator(state) {
@@ -563,9 +864,125 @@ async function finalizeAuction(state, roomCode) {
   broadcastState(roomCode);
 }
 
+const AI_BOT_NAMES = [
+  'Pep Guardiola (AI)',
+  'Carlo Ancelotti (AI)',
+  'Jürgen Klopp (AI)',
+  'José Mourinho (AI)',
+  'Mikel Arteta (AI)',
+  'Zinedine Zidane (AI)',
+  'Diego Simeone (AI)',
+  'Xabi Alonso (AI)'
+];
+
+function scheduleBotBidding(state, roomCode) {
+  if (!state || state.phase !== 'BIDDING' || !state.currentPlayer || state.isPaused) return;
+
+  if (state.botBidTimeout) {
+    clearTimeout(state.botBidTimeout);
+    state.botBidTimeout = null;
+  }
+
+  // Find bots in the room that are not the current highest bidder
+  const bots = state.users.filter(u => u.isBot && u.id !== state.highestBidder);
+  if (bots.length === 0) return;
+
+  const player = state.currentPlayer;
+  const isFirstBid = state.highestBidder === null;
+  const inc = 5;
+  const targetBid = isFirstBid
+    ? (state.config.enableFirstBidBasePrice !== false ? player.basePrice : player.basePrice + inc)
+    : state.currentBid + inc;
+
+  const interestedBots = [];
+  for (const bot of bots) {
+    const slotsLeft = state.config.squadSize - bot.squad.length;
+    if (slotsLeft <= 0) continue;
+
+    const hasGK = bot.squad.some(p => p.position === 'GK');
+    if (slotsLeft === 1 && !hasGK && player.position !== 'GK') continue;
+    if (player.position === 'GK' && hasGK && bot.squad.length >= 3) continue;
+
+    const clubCount = bot.squad.filter(p => p.club === player.club).length;
+    if (clubCount >= 3) continue;
+
+    const minReserve = (slotsLeft - 1) * 1;
+    if (bot.budget - targetBid < minReserve) continue;
+
+    const rating = player.rating || 75;
+    let valuationMultiplier = 1.15;
+    if (rating >= 90) valuationMultiplier = 1.85;
+    else if (rating >= 85) valuationMultiplier = 1.55;
+    else if (rating >= 80) valuationMultiplier = 1.35;
+    else if (rating >= 75) valuationMultiplier = 1.2;
+
+    const seed = ((bot.id.charCodeAt(bot.id.length - 1) || 0) + (player.id.charCodeAt(0) || 0)) % 10;
+    const botVariation = 0.9 + (seed * 0.03);
+    const maxValuation = Math.round(player.basePrice * valuationMultiplier * botVariation);
+
+    if (targetBid <= maxValuation && targetBid <= bot.budget) {
+      interestedBots.push({ bot, targetBid });
+    }
+  }
+
+  if (interestedBots.length === 0) return;
+
+  const selected = interestedBots[Math.floor(Math.random() * interestedBots.length)];
+  const delay = Math.floor(Math.random() * 1600) + 1200; // 1.2s - 2.8s natural delay
+
+  state.botBidTimeout = setTimeout(() => {
+    state.botBidTimeout = null;
+    const currentState = ROOMS.get(roomCode);
+    if (!currentState || currentState.phase !== 'BIDDING' || currentState.isPaused) return;
+    if (currentState.currentPlayer?.id !== player.id) return;
+    if (currentState.highestBidder === selected.bot.id) return;
+
+    const currentIsFirst = currentState.highestBidder === null;
+    const currentTarget = currentIsFirst
+      ? (currentState.config.enableFirstBidBasePrice !== false ? player.basePrice : player.basePrice + 5)
+      : currentState.currentBid + 5;
+
+    const err = validateBid(currentState, selected.bot, player, currentTarget);
+    if (err) return;
+
+    currentState.bidHistory.push({ bidder: currentState.highestBidder, bid: currentState.currentBid });
+    currentState.currentBid = currentTarget;
+    currentState.highestBidder = selected.bot.id;
+
+    if (currentState.timer < 10) {
+      currentState.timer = 10;
+      io.to(roomCode).emit('TIMER_UPDATE', currentState.timer);
+    }
+
+    const isFirstAtBase = currentIsFirst && (currentTarget === player.basePrice);
+    const incDesc = isFirstAtBase ? 'Base Price' : '+$5M';
+    addMessage(currentState, `🤖 ${selected.bot.name} bids $${currentTarget}M! (${incDesc})`);
+
+    io.to(roomCode).emit('AUCTION_ANIMATION_EVENT', {
+      type: isFirstAtBase ? 'FIRST_BID' : 'BID_RAISE',
+      bidderId: selected.bot.id,
+      bidderName: selected.bot.name,
+      bid: currentTarget,
+      isFirstBid: isFirstAtBase,
+      playerName: player.name,
+      isBot: true
+    });
+
+    broadcastState(roomCode);
+
+    processAutoBids(currentState, roomCode);
+    scheduleBotBidding(currentState, roomCode);
+  }, delay);
+}
+
 async function nextPlayer(roomCode) {
   const state = ROOMS.get(roomCode);
   if (!state) return;
+
+  if (state.botBidTimeout) {
+    clearTimeout(state.botBidTimeout);
+    state.botBidTimeout = null;
+  }
 
   const activeManager = setNextNominator(state);
   if (!activeManager) {
@@ -574,11 +991,43 @@ async function nextPlayer(roomCode) {
   }
 
   if (state.config.enableManualNominations) {
-    state.phase = 'NOMINATION';
-    state.currentPlayer = null;
-    state.highestBidder = null;
-    addMessage(state, `Waiting for ${activeManager.name} to nominate a player...`);
-    broadcastState(roomCode);
+    if (activeManager.isBot) {
+      state.phase = 'NOMINATION';
+      state.currentPlayer = null;
+      state.highestBidder = null;
+      addMessage(state, `🤖 ${activeManager.name} is selecting a nomination...`);
+      broadcastState(roomCode);
+
+      setTimeout(() => {
+        const curr = ROOMS.get(roomCode);
+        if (!curr || curr.phase !== 'NOMINATION') return;
+        let next = null;
+        while (curr.pool.length > 0) {
+          const candidate = curr.pool.pop();
+          if (!curr.draftedHistory.includes(candidate.id)) {
+            next = candidate;
+            break;
+          }
+        }
+        if (next) {
+          setupNewPlayer(curr, next);
+          curr.phase = 'BIDDING';
+          curr.nominatorIndex = (curr.nominatorIndex + 1) % curr.users.length;
+          addMessage(curr, `Up next: ${next.name} (Nominated by ${activeManager.name}, Base: $${curr.currentBid}M)`);
+          startTimer(roomCode);
+          broadcastState(roomCode);
+          scheduleBotBidding(curr, roomCode);
+        } else {
+          finalizeAuction(curr, roomCode);
+        }
+      }, 1400);
+    } else {
+      state.phase = 'NOMINATION';
+      state.currentPlayer = null;
+      state.highestBidder = null;
+      addMessage(state, `Waiting for ${activeManager.name} to nominate a player...`);
+      broadcastState(roomCode);
+    }
   } else {
     // Auto-nominate
     let next = null;
@@ -604,6 +1053,7 @@ async function nextPlayer(roomCode) {
       addMessage(state, `Up next: ${next.name} (Base Price: $${state.currentBid}M)`);
       startTimer(roomCode);
       broadcastState(roomCode);
+      scheduleBotBidding(state, roomCode);
     } else {
       finalizeAuction(state, roomCode);
     }
@@ -611,6 +1061,11 @@ async function nextPlayer(roomCode) {
 }
 
 function setupNewPlayer(state, player) {
+  if (state.botBidTimeout) {
+    clearTimeout(state.botBidTimeout);
+    state.botBidTimeout = null;
+  }
+
   player.buyNowPrice = Math.round(player.basePrice * 2.5);
   player.reservePrice = Math.round(player.basePrice * 1.1);
 
@@ -625,6 +1080,19 @@ function setupNewPlayer(state, player) {
   // Reset auto-bid limits for all users
   state.users.forEach(u => {
     u.autoBidLimit = null;
+  });
+
+  io.to(state.roomCode).emit('AUCTION_ANIMATION_EVENT', {
+    type: 'PLAYER_REVEAL',
+    player: {
+      id: player.id,
+      name: player.name,
+      rating: player.rating,
+      position: player.position,
+      club: player.club,
+      nationality: player.nationality,
+      basePrice: player.basePrice
+    }
   });
 }
 
@@ -668,6 +1136,7 @@ function processAutoBids(state, roomCode) {
   addMessage(state, `🤖 Auto-Bid: ${bidder.name} bids $${targetBid}M!`);
   
   processAutoBids(state, roomCode);
+  scheduleBotBidding(state, roomCode);
 }
 
 function validateBid(state, user, player, newBid, isBuyNow = false) {
@@ -805,6 +1274,88 @@ io.on('connection', (socket) => {
     `);
   });
 
+  socket.on('ADD_AI_BOT', () => {
+    const code = socket.roomCode;
+    const state = ROOMS.get(code);
+    if (!state || state.phase !== 'LOBBY') return;
+    const user = state.users.find(u => u.id === socket.id);
+    if (!user || !user.isHost) return;
+
+    if (state.users.length >= 20) {
+      socket.emit('ERROR', 'Room has reached maximum capacity.');
+      return;
+    }
+
+    const usedNames = new Set(state.users.map(u => u.name));
+    const availableName = AI_BOT_NAMES.find(name => !usedNames.has(name)) || `AI Manager ${state.users.length + 1}`;
+
+    const botId = 'bot_' + crypto.randomBytes(4).toString('hex');
+    const botUser = {
+      id: botId,
+      name: availableName,
+      email: '',
+      budget: state.config.budget || 300,
+      squad: [],
+      isHost: false,
+      isBot: true,
+      connected: true
+    };
+
+    state.users.push(botUser);
+    addMessage(state, `🤖 ${botUser.name} joined the draft room.`);
+    broadcastState(code);
+  });
+
+  socket.on('FILL_AI_BOTS', () => {
+    const code = socket.roomCode;
+    const state = ROOMS.get(code);
+    if (!state || state.phase !== 'LOBBY') return;
+    const user = state.users.find(u => u.id === socket.id);
+    if (!user || !user.isHost) return;
+
+    const targetCount = 4;
+    let added = 0;
+    while (state.users.length < targetCount) {
+      const usedNames = new Set(state.users.map(u => u.name));
+      const availableName = AI_BOT_NAMES.find(name => !usedNames.has(name)) || `AI Manager ${state.users.length + 1}`;
+      const botId = 'bot_' + crypto.randomBytes(4).toString('hex');
+      state.users.push({
+        id: botId,
+        name: availableName,
+        email: '',
+        budget: state.config.budget || 300,
+        squad: [],
+        isHost: false,
+        isBot: true,
+        connected: true
+      });
+      added++;
+    }
+    if (added > 0) {
+      addMessage(state, `🤖 Added ${added} AI Bot Opponents to the draft!`);
+      broadcastState(code);
+    } else {
+      socket.emit('ERROR', 'Room already has 4 or more managers.');
+    }
+  });
+
+  socket.on('REMOVE_AI_BOT', () => {
+    const code = socket.roomCode;
+    const state = ROOMS.get(code);
+    if (!state || state.phase !== 'LOBBY') return;
+    const user = state.users.find(u => u.id === socket.id);
+    if (!user || !user.isHost) return;
+
+    const botIdx = state.users.map(u => u.isBot).lastIndexOf(true);
+    if (botIdx !== -1) {
+      const removed = state.users.splice(botIdx, 1)[0];
+      addMessage(state, `🗑️ ${removed.name} removed from room.`);
+      broadcastState(code);
+    } else {
+      socket.emit('ERROR', 'No AI bots to remove.');
+    }
+  });
+
   socket.on('START_AUCTION', (data) => {
     const code = socket.roomCode;
     const state = ROOMS.get(code);
@@ -824,7 +1375,10 @@ io.on('connection', (socket) => {
       state.config.enableFirstBidBasePrice = data.enableFirstBidBasePrice !== false;
       state.config.playerPool = data.playerPool || 'special';
       
-      state.pool = data.pool.sort(() => Math.random() - 0.5);
+      const poolArray = Array.isArray(data.pool) && data.pool.length > 0 
+        ? data.pool 
+        : getPlayersDatabase(state.config.playerPool);
+      state.pool = [...poolArray].sort(() => Math.random() - 0.5);
       state.users.forEach(u => u.budget = state.config.budget);
       state.messages = [];
       state.draftedHistory = [];
@@ -906,6 +1460,7 @@ io.on('connection', (socket) => {
     addMessage(state, `Up next: ${player.name} (Base Price: $${state.currentBid}M)`);
     startTimer(code);
     broadcastState(code);
+    scheduleBotBidding(state, code);
   });
 
   socket.on('PLACE_BID', (incrementAmount) => {
@@ -960,9 +1515,20 @@ io.on('connection', (socket) => {
     
     const incDesc = isFirstBidAtBase ? 'Base Price' : `+$${inc || 5}M`;
     addMessage(state, `${user.name} bids $${state.currentBid}M! (${incDesc})`);
+
+    io.to(code).emit('AUCTION_ANIMATION_EVENT', {
+      type: isFirstBidAtBase ? 'FIRST_BID' : 'BID_RAISE',
+      bidderId: user.id,
+      bidderName: user.name,
+      bid: state.currentBid,
+      isFirstBid: isFirstBidAtBase,
+      playerName: state.currentPlayer.name,
+      isBot: false
+    });
     
     processAutoBids(state, code);
     broadcastState(code);
+    scheduleBotBidding(state, code);
   });
 
   socket.on('SET_AUTO_BID', (limit) => {
@@ -1013,6 +1579,15 @@ io.on('connection', (socket) => {
     state.highestBidder = socket.id;
 
     addMessage(state, `⚡ Buy Now: ${user.name} bought ${state.currentPlayer.name} instantly for $${buyNowPrice}M!`);
+
+    io.to(code).emit('AUCTION_ANIMATION_EVENT', {
+      type: 'BUY_NOW',
+      bidderId: user.id,
+      bidderName: user.name,
+      bid: buyNowPrice,
+      playerName: state.currentPlayer.name,
+      isBot: false
+    });
     
     if (state.timerInterval) clearInterval(state.timerInterval);
     handleSold(code);
@@ -1161,6 +1736,7 @@ io.on('connection', (socket) => {
     const anyConnected = state.users.some(u => u.connected);
     if (!anyConnected || state.users.length === 0) {
       if (state.timerInterval) clearInterval(state.timerInterval);
+      if (state.botBidTimeout) clearTimeout(state.botBidTimeout);
       ROOMS.delete(code);
       console.log(`Room cleaned up: ${code}`);
     } else {
@@ -1202,6 +1778,7 @@ io.on('connection', (socket) => {
     const anyConnected = state.users.some(u => u.connected);
     if (!anyConnected) {
       if (state.timerInterval) clearInterval(state.timerInterval);
+      if (state.botBidTimeout) clearTimeout(state.botBidTimeout);
       ROOMS.delete(code);
       console.log(`Room cleaned up: ${code}`);
     } else {

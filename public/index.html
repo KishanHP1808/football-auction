@@ -7,39 +7,210 @@
   <meta name="description"
     content="Football Auction Simulator — Draft elite football players in a live real-time auction with AI bot opponents. Build your ultimate squad.">
   <title>Football Auction — Draft Your Ultimate XI</title>
+  <meta name="theme-color" content="#080b11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FootAuction">
   <link rel="stylesheet" href="style.css?v=2.0.0">
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png">
   <link rel="icon" type="image/png" href="icon.png?v=2.0.0">
-  <link rel="shortcut icon" type="image/png" href="icon.png?v=2.0.0">
-  <link rel="apple-touch-icon" href="icon.png?v=2.0.0">
-  <link rel="manifest" href="manifest.json?v=2.0.0">
+  <link rel="shortcut icon" type="image/png" href="favicon.png?v=2.0.0">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
 </head>
 
 <body>
-  <!-- Sign In overlay -->
-  <div id="login-overlay" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(8,11,17,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:9999; display:flex; align-items:center; justify-content:center;">
-    <div class="panel" style="width:100%; max-width:400px; padding:2.5rem; text-align:center; box-shadow:0 0 40px rgba(0, 242, 254, 0.15);">
-      <div style="font-size:2.5rem; margin-bottom:1rem;">⚽🏆</div>
-      <h2 style="margin-bottom:0.5rem; color:var(--text-primary); font-size:1.8rem;">Football Auction</h2>
-      <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:1.75rem;">Sign in to save and access your draft history.</p>
+  <!-- Sign In & Registration Overlay -->
+  <div id="login-overlay" class="auth-overlay" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(8,11,17,0.88); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); z-index:9999; display:flex; align-items:center; justify-content:center; padding:1rem;">
+    <div class="panel auth-panel" id="auth-panel-card" style="width:100%; max-width:440px; padding:2.25rem 2rem; text-align:center; box-shadow:0 0 50px rgba(0, 242, 254, 0.2); max-height:92vh; overflow-y:auto; border-radius:18px;">
       
-      <div class="form-group" style="text-align:left;">
-        <label for="login-username">Username</label>
-        <input type="text" class="form-control" id="login-username" placeholder="Enter username">
+      <!-- Top Segmented Tab Switcher -->
+      <div class="auth-tabs" id="auth-tabs-bar">
+        <button type="button" class="auth-tab active" id="auth-tab-login" onclick="switchAuthTab('login')">
+          <span>🔑 Sign In</span>
+        </button>
+        <button type="button" class="auth-tab" id="auth-tab-register" onclick="switchAuthTab('register')">
+          <span>✨ Create Account</span>
+        </button>
       </div>
-      <div class="form-group" style="text-align:left;">
-        <label for="login-email">Email Address</label>
-        <input type="email" class="form-control" id="login-email" placeholder="Enter email (squad reports)">
+
+      <!-- ═══════════ TAB 1: SIGN IN VIEW ═══════════ -->
+      <div id="login-main-view" class="auth-view-content">
+        <form id="login-form" onsubmit="event.preventDefault(); handleLogin();">
+          <div style="font-size:2.4rem; margin-bottom:0.5rem; filter:drop-shadow(0 0 10px rgba(0,242,254,0.4));">⚽🏆</div>
+          <h2 style="margin-bottom:0.35rem; color:var(--text-primary); font-size:1.75rem; letter-spacing:0.5px;">Welcome Back</h2>
+          <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:1.5rem;">Sign in to access your squad roster and draft tournaments.</p>
+          
+          <div class="form-group" style="text-align:left;">
+            <label for="login-username">Username or Email</label>
+            <input type="text" class="form-control" id="login-username" placeholder="Enter username or email address" autocomplete="username" spellcheck="false" onkeyup="if(event.key === 'Enter') $('#login-password').focus()">
+          </div>
+
+          <div class="form-group" style="text-align:left; margin-bottom:1.25rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+              <label for="login-password" style="margin-bottom:0;">Password</label>
+              <a href="javascript:void(0)" onclick="openForgotPasswordView()" id="login-forgot-link" style="color:var(--primary-neon); font-size:0.78rem; text-decoration:none; font-weight:600; cursor:pointer;" title="Recover forgotten password">Forgot Password?</a>
+            </div>
+            <div style="position:relative;">
+              <input type="password" class="form-control" id="login-password" placeholder="Enter password" onkeyup="if(event.key === 'Enter') handleLogin()" style="padding-right:2.5rem;" autocomplete="current-password">
+              <button type="button" onclick="togglePasswordVisibility('login-password', this)" class="auth-eye-btn" title="Show or hide password" aria-label="Toggle password visibility">👁️</button>
+            </div>
+          </div>
+          
+          <div id="login-error" class="auth-error-box" style="display:none;"></div>
+          
+          <button type="submit" class="btn-primary auth-submit-btn" id="login-submit-btn" style="width:100%; margin-bottom:0.85rem; padding:0.9rem; font-size:1rem;">Sign In 🚀</button>
+        </form>
+        
+        <div style="margin: 0.85rem 0 1rem; font-size:0.83rem; color:var(--text-secondary);">
+          Don't have an account? <a href="javascript:void(0)" onclick="switchAuthTab('register')" style="color:var(--primary-neon); font-weight:700; text-decoration:underline;">Create one now</a>
+        </div>
+
+        <div style="position:relative; margin: 1.25rem 0 1rem; text-align:center;">
+          <div style="position:absolute; top:50%; left:0; right:0; height:1px; background:rgba(255,255,255,0.08);"></div>
+          <span style="position:relative; background:#0e131d; padding:0 0.75rem; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">Or</span>
+        </div>
+
+        <button type="button" class="btn-secondary" onclick="handleGuestLogin()" style="width:100%; border-color:rgba(0, 242, 254, 0.4); color:var(--primary-neon);">⚽ Quick Play as Guest</button>
       </div>
-      <div class="form-group" style="text-align:left; margin-bottom:1.5rem;">
-        <label for="login-password">Password</label>
-        <input type="password" class="form-control" id="login-password" placeholder="Enter password" onkeyup="if(event.key === 'Enter') handleLogin()">
+
+      <!-- ═══════════ TAB 2: CREATE ACCOUNT VIEW ═══════════ -->
+      <div id="register-main-view" class="auth-view-content" style="display:none;">
+        <form id="register-form" onsubmit="event.preventDefault(); handleRegister();">
+          <div style="font-size:2.4rem; margin-bottom:0.5rem; filter:drop-shadow(0 0 12px rgba(0,255,135,0.4));">🌟📋</div>
+          <h2 style="margin-bottom:0.35rem; color:var(--text-primary); font-size:1.75rem; letter-spacing:0.5px;">Create Account</h2>
+          <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:1.35rem;">Register your manager profile to draft squads and track stats.</p>
+          
+          <div class="form-group" style="text-align:left;">
+            <label for="reg-username">Manager Username</label>
+            <input type="text" class="form-control" id="reg-username" placeholder="e.g. kishan_fc or striker99" autocomplete="username" spellcheck="false" onkeyup="if(event.key === 'Enter') $('#reg-email').focus()">
+            <small style="color:var(--text-muted); font-size:0.74rem; display:block; margin-top:0.25rem;">2 to 25 characters. Letters, numbers, spaces, underscores, or hyphens.</small>
+          </div>
+
+          <div class="form-group" style="text-align:left;">
+            <label for="reg-email">Email Address</label>
+            <input type="email" class="form-control" id="reg-email" placeholder="e.g. manager@gmail.com" autocomplete="email" spellcheck="false" onkeyup="if(event.key === 'Enter') $('#reg-password').focus()">
+            <small style="color:var(--text-muted); font-size:0.74rem; display:block; margin-top:0.25rem;">Used for official squad email reports & recovery.</small>
+          </div>
+
+          <div class="form-group" style="text-align:left; margin-bottom:0.75rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+              <label for="reg-password" style="margin-bottom:0;">Password</label>
+              <span id="reg-strength-label" style="font-size:0.74rem; font-weight:700; color:var(--text-muted);"></span>
+            </div>
+            <div style="position:relative;">
+              <input type="password" class="form-control" id="reg-password" placeholder="Min. 4 characters" oninput="updatePasswordStrength(this.value)" autocomplete="new-password" onkeyup="if(event.key === 'Enter') $('#reg-confirm-password').focus()" style="padding-right:2.5rem;">
+              <button type="button" onclick="togglePasswordVisibility('reg-password', this)" class="auth-eye-btn" title="Show or hide password" aria-label="Toggle password visibility">👁️</button>
+            </div>
+            <!-- Animated password strength bar -->
+            <div class="strength-meter-track" style="height:4px; width:100%; background:rgba(255,255,255,0.08); border-radius:3px; margin-top:0.4rem; overflow:hidden;">
+              <div id="reg-strength-bar" style="height:100%; width:0%; border-radius:3px; transition:width 0.3s cubic-bezier(0.4,0,0.2,1), background 0.3s ease;"></div>
+            </div>
+          </div>
+
+          <div class="form-group" style="text-align:left; margin-bottom:1.15rem;">
+            <label for="reg-confirm-password">Confirm Password</label>
+            <div style="position:relative;">
+              <input type="password" class="form-control" id="reg-confirm-password" placeholder="Re-enter password" onkeyup="if(event.key === 'Enter') handleRegister()" autocomplete="new-password" style="padding-right:2.5rem;">
+              <button type="button" onclick="togglePasswordVisibility('reg-confirm-password', this)" class="auth-eye-btn" title="Show or hide password" aria-label="Toggle password visibility">👁️</button>
+            </div>
+          </div>
+          
+          <div id="reg-error" class="auth-error-box" style="display:none;"></div>
+          <div id="reg-success" class="auth-success-box" style="display:none;"></div>
+          
+          <button type="submit" class="btn-primary auth-submit-btn" id="reg-submit-btn" style="width:100%; margin-bottom:0.85rem; padding:0.9rem; font-size:1rem; background:linear-gradient(135deg, var(--success-neon), #00b359); border-color:var(--success-neon); color:#080b11; font-weight:700;">
+            Create Account & Sign In 🌟
+          </button>
+        </form>
+        
+        <div style="margin: 0.85rem 0 1rem; font-size:0.83rem; color:var(--text-secondary);">
+          Already have an account? <a href="javascript:void(0)" onclick="switchAuthTab('login')" style="color:var(--primary-neon); font-weight:700; text-decoration:underline;">Sign In</a>
+        </div>
+
+        <div style="position:relative; margin: 1.25rem 0 1rem; text-align:center;">
+          <div style="position:absolute; top:50%; left:0; right:0; height:1px; background:rgba(255,255,255,0.08);"></div>
+          <span style="position:relative; background:#0e131d; padding:0 0.75rem; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">Or</span>
+        </div>
+
+        <button type="button" class="btn-secondary" onclick="handleGuestLogin()" style="width:100%; border-color:rgba(0, 242, 254, 0.4); color:var(--primary-neon);">⚽ Quick Play as Guest</button>
       </div>
-      
-      <div id="login-error" style="color:var(--danger-neon); font-size:0.8rem; margin-bottom:1.25rem; text-align:left; display:none;"></div>
-      
-      <button class="btn-primary" onclick="handleLogin()" style="margin-bottom:0.75rem;">Sign In</button>
-      <button class="btn-secondary" onclick="handleRegister()" style="width:100%; margin-bottom:0.75rem;">Create Account</button>
-      <button class="btn-secondary" onclick="handleGuestLogin()" style="width:100%; border-color:rgba(0, 242, 254, 0.4); color:var(--primary-neon);">⚽ Quick Play as Guest</button>
+
+      <!-- Dedicated Forgot Password & Recovery View -->
+      <div id="forgot-password-view" style="display:none;">
+        <div style="font-size:2.2rem; margin-bottom:0.6rem;">🔐</div>
+        <h2 style="margin-bottom:0.35rem; color:var(--text-primary); font-size:1.6rem;">Account Recovery</h2>
+        <p style="color:var(--text-secondary); font-size:0.82rem; margin-bottom:1.4rem;">Retrieve access or set a new password for your manager profile.</p>
+
+        <!-- Step 1: Identifier lookup -->
+        <div id="fp-step-1">
+          <div class="form-group" style="text-align:left; margin-bottom:1.25rem;">
+            <label for="fp-identifier">Username or Registered Email</label>
+            <input type="text" class="form-control" id="fp-identifier" placeholder="e.g. kishan or manager@gmail.com" onkeyup="if(event.key === 'Enter') handleForgotPasswordRequest()">
+            <small style="color:var(--text-muted); font-size:0.74rem; display:block; margin-top:0.35rem;">We will verify your account and generate a 6-digit security code.</small>
+          </div>
+
+          <div id="fp-step1-error" style="color:var(--danger-neon); font-size:0.82rem; margin-bottom:1rem; text-align:left; display:none; line-height:1.4;"></div>
+
+          <button class="btn-primary" id="fp-request-btn" onclick="handleForgotPasswordRequest()" style="width:100%; margin-bottom:0.75rem;">Find Account & Send Code 📨</button>
+          <button class="btn-secondary" onclick="closeForgotPasswordView()" style="width:100%;">← Back to Sign In</button>
+        </div>
+
+        <!-- Step 2: Verification Code & Password Reset -->
+        <div id="fp-step-2" style="display:none;">
+          <div id="fp-account-info-box" class="fp-info-box" style="margin-bottom:1.15rem; background:rgba(0, 242, 254, 0.08); border:1px solid rgba(0, 242, 254, 0.3); border-radius:8px; padding:0.75rem 0.85rem; font-size:0.8rem; text-align:left; color:var(--text-secondary);">
+            <div style="font-weight:700; color:#00f2fe; margin-bottom:0.25rem;">Account Verified</div>
+            <div id="fp-account-desc">Code dispatched to registered email.</div>
+          </div>
+
+          <!-- Code preview helper for development/preview environments without SMTP -->
+          <div id="fp-code-helper-banner" style="display:none; margin-bottom:1rem; background:rgba(0, 255, 135, 0.1); border:1px dashed var(--success-neon); border-radius:8px; padding:0.6rem 0.8rem; font-size:0.8rem; text-align:left; color:var(--text-primary);">
+            <div style="color:var(--success-neon); font-weight:700; font-size:0.75rem; text-transform:uppercase; margin-bottom:0.2rem;">Quick Verification Code (Dev / Preview Mode)</div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span id="fp-code-helper-val" style="font-family:monospace; font-weight:900; font-size:1.15rem; color:#00ff87; letter-spacing:3px;">123456</span>
+              <button type="button" onclick="copyHelperCode()" style="background:rgba(0, 255, 135, 0.2); border:1px solid #00ff87; color:#00ff87; font-size:0.72rem; padding:0.25rem 0.6rem; border-radius:4px; cursor:pointer;">Auto Fill</button>
+            </div>
+          </div>
+
+          <div class="form-group" style="text-align:left; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+              <label for="fp-code" style="margin-bottom:0;">6-Digit Security Code</label>
+              <a href="javascript:void(0)" onclick="handleForgotPasswordRequest(true)" id="fp-resend-link" style="color:var(--primary-neon); font-size:0.75rem; text-decoration:none; font-weight:600;">Resend Code</a>
+            </div>
+            <input type="text" class="form-control" id="fp-code" placeholder="• • • • • •" maxlength="6" style="letter-spacing:0.35em; font-size:1.2rem; font-weight:bold; text-align:center; font-family:monospace;">
+          </div>
+
+          <div class="form-group" style="text-align:left; margin-bottom:0.75rem;">
+            <label for="fp-new-password">New Password</label>
+            <div style="position:relative;">
+              <input type="password" class="form-control" id="fp-new-password" placeholder="At least 4 characters" style="padding-right:2.4rem;">
+              <button type="button" onclick="togglePasswordVisibility('fp-new-password', this)" style="position:absolute; right:0.5rem; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1rem; padding:0.25rem; line-height:1;" title="Show or hide password" aria-label="Toggle password visibility">👁️</button>
+            </div>
+          </div>
+
+          <div class="form-group" style="text-align:left; margin-bottom:0.85rem;">
+            <label for="fp-confirm-password">Confirm Password</label>
+            <div style="position:relative;">
+              <input type="password" class="form-control" id="fp-confirm-password" placeholder="Re-enter new password" onkeyup="if(event.key === 'Enter') handleForgotPasswordReset()" style="padding-right:2.4rem;">
+              <button type="button" onclick="togglePasswordVisibility('fp-confirm-password', this)" style="position:absolute; right:0.5rem; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1rem; padding:0.25rem; line-height:1;" title="Show or hide password" aria-label="Toggle password visibility">👁️</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom:1.15rem; text-align:left;">
+            <button type="button" onclick="generateAndFillPassword()" class="btn-secondary" style="font-size:0.78rem; padding:0.45rem 0.75rem; width:100%; border-style:dashed; border-color:rgba(0, 255, 135, 0.45); color:var(--success-neon); display:flex; align-items:center; justify-content:center; gap:0.45rem;">
+              <span>🎲</span> Generate & Auto-Fill Memorable Password
+            </button>
+          </div>
+
+          <div id="fp-step2-error" style="color:var(--danger-neon); font-size:0.82rem; margin-bottom:1rem; text-align:left; display:none; line-height:1.4;"></div>
+          <div id="fp-step2-success" style="color:var(--success-neon); font-size:0.82rem; margin-bottom:1rem; text-align:left; display:none; line-height:1.4;"></div>
+
+          <button class="btn-primary" id="fp-submit-btn" onclick="handleForgotPasswordReset()" style="width:100%; margin-bottom:0.75rem;">Set New Password & Sign In 🚀</button>
+          <button class="btn-secondary" onclick="closeForgotPasswordView()" style="width:100%;">Cancel & Back to Sign In</button>
+        </div>
+
+      </div>
     </div>
   </div>
 
@@ -53,6 +224,10 @@
       </div>
       <div class="header-right">
         <span id="user-profile" class="user-profile-badge">👤 Guest</span>
+        <button class="pwa-install-btn" id="pwa-install-btn" onclick="triggerPWAInstall()" title="Install App" style="display:none;">
+          <span class="install-icon">📲</span>
+          <span class="install-text">Install App</span>
+        </button>
         <button class="logout-btn" id="logout-btn" onclick="handleLogout()" title="Log Out" style="display:none;">
           <span class="logout-icon">🚪</span>
           <span class="logout-text">Log Out</span>
@@ -70,6 +245,7 @@
         <button class="nav-btn" data-view="tracker-view" disabled id="nav-tracker">Live Tracker</button>
         <button class="nav-btn" data-view="history-view" id="nav-history">Draft History</button>
         <button class="nav-btn" data-view="summary-view" disabled id="nav-summary">Summary</button>
+        <button class="nav-btn mobile-install-btn" id="mobile-install-btn" onclick="triggerPWAInstall()" style="display:none;">📲 Install App</button>
         <button class="leave-btn" id="leave-room-btn" onclick="leaveRoom()" style="display:none;">Exit Room</button>
         <button class="nav-btn mobile-logout-btn" id="mobile-logout-btn" onclick="handleLogout()" style="display:none;">🚪 Log Out</button>
       </nav>
@@ -89,6 +265,18 @@
             <button class="btn-primary" onclick="showCreateRoom('wc2026_elite')" style="flex:1; min-width:180px; padding:1.1rem 0.8rem; font-size:1rem; border-radius:12px; background:linear-gradient(135deg, #f1c40f, #e67e22); border-color:#f1c40f; color:#111;">🏆 Create World Cup Elite Room</button>
             <button class="btn-primary" onclick="showCreateRoom('wc2026')" style="flex:1; min-width:180px; padding:1.1rem 0.8rem; font-size:1rem; border-radius:12px;">🌍 Create All World Cup Room</button>
             <button class="btn-secondary" onclick="showJoinRoom()" style="flex:1; min-width:180px; padding:1.1rem 0.8rem; font-size:1rem; border-radius:12px;">🔑 Join Room Code</button>
+          </div>
+
+          <!-- Lobby In-App PWA Install Banner -->
+          <div id="lobby-pwa-banner" class="panel" style="display:none; width:100%; max-width:560px; padding:1rem 1.25rem; border:1px solid rgba(0, 242, 254, 0.35); background:rgba(0, 242, 254, 0.06); border-radius:12px; align-items:center; justify-content:space-between; gap:1rem; margin-top:0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.85rem; text-align:left;">
+              <span style="font-size:2rem;">📲</span>
+              <div>
+                <div style="font-weight:700; font-size:0.95rem; color:var(--text-primary); font-family:var(--font-display);">Install Football Auction</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary);">Install as a desktop or mobile app for full-screen auction drafts</div>
+              </div>
+            </div>
+            <button class="btn-primary" onclick="triggerPWAInstall()" style="padding:0.55rem 1.1rem; font-size:0.85rem; white-space:nowrap;">Install Now</button>
           </div>
         </div>
 
@@ -207,7 +395,8 @@
           </div>
 
           <!-- Center: Player Card + Timer + Bidding + Nomination Panel -->
-          <div class="arena-center">
+          <div class="arena-center" id="auction-arena-center">
+            <div id="auction-fx-overlay" class="auction-fx-overlay"></div>
             
             <div class="timer-container" id="timer-container" style="display:none;">
               <div class="timer-circle" id="timer-circle">
@@ -256,18 +445,25 @@
       <!-- ═══════════ SQUAD VIEW ═══════════ -->
       <section id="squad-view" class="view">
         <div style="margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
-          <div style="display:flex; align-items:center; gap: 1rem;">
+          <div style="display:flex; align-items:center; gap: 0.75rem; flex-wrap:wrap;">
             <h2>🏟️ Squad View</h2>
-            <select class="form-control" id="squad-manager-select" style="width:250px"></select>
+            <select class="form-control" id="squad-manager-select" style="max-width:250px; width:auto;"></select>
           </div>
           
-          <div class="form-group" style="width:160px; margin-bottom:0; display: flex; align-items: center; gap: 0.5rem;">
-            <label for="formation-select" style="margin-bottom:0; font-size:0.8rem; white-space:nowrap;">📋 Formation</label>
-            <select id="formation-select" class="form-control" style="padding: 0.4rem 0.8rem; font-size:0.9rem;">
-              <option value="4-3-3" selected>4-3-3</option>
-              <option value="4-4-2">4-4-2</option>
-              <option value="3-5-2">3-5-2</option>
-            </select>
+          <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+            <button class="btn-share-squad" id="share-squad-btn" onclick="shareMySquad()" title="Share team lineup on social media">
+              <span class="share-icon">📤</span>
+              <span class="share-label">Share My Squad</span>
+            </button>
+
+            <div class="form-group" style="width:auto; max-width:180px; margin-bottom:0; display: flex; align-items: center; gap: 0.5rem;">
+              <label for="formation-select" style="margin-bottom:0; font-size:0.8rem; white-space:nowrap;">📋 Formation</label>
+              <select id="formation-select" class="form-control" style="padding: 0.4rem 0.8rem; font-size:0.9rem;">
+                <option value="4-3-3" selected>4-3-3</option>
+                <option value="4-4-2">4-4-2</option>
+                <option value="3-5-2">3-5-2</option>
+              </select>
+            </div>
           </div>
         </div>
         
@@ -369,8 +565,8 @@
             <div id="merge-status-banner"
               style="display:none;background:rgba(0,255,135,0.08);border:1px solid var(--success-neon);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.875rem;color:var(--success-neon);">
             </div>
-            <div class="db-filters" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center">
-              <select id="db-filter-pos" class="form-control" style="width:160px">
+            <div class="db-filters" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;width:100%;">
+              <select id="db-filter-pos" class="form-control" style="max-width:160px;width:100%;">
                 <option value="ALL">All Positions</option>
                 <option value="GK">GK — Goalkeeper</option>
                 <option value="DF">DF — Defender</option>
@@ -378,8 +574,8 @@
                 <option value="FW">FW — Forward</option>
               </select>
               <input type="text" class="form-control" id="db-search" placeholder="Search name, club, country..."
-                style="flex:1;min-width:200px">
-              <span id="db-count" style="color:var(--text-secondary);font-size:0.9rem">— players</span>
+                style="flex:1;min-width:min(200px, 100%);">
+              <span id="db-count" style="color:var(--text-secondary);font-size:0.9rem;white-space:nowrap;">— players</span>
             </div>
             <div class="db-table-container">
               <table class="db-table">
@@ -387,12 +583,18 @@
                   <tr>
                     <th>Photo</th>
                     <th>Pos</th>
-                    <th>Name</th>
+                    <th class="sortable-th" id="th-sort-name" onclick="setDbSort('name')" title="Sort by Name" style="cursor:pointer; user-select:none;">
+                      Name <span class="sort-icon" id="sort-icon-name" style="opacity:0.4; font-size:0.75rem; margin-left:4px;">↕</span>
+                    </th>
                     <th>Club</th>
                     <th>Nationality</th>
-                    <th>Rating</th>
+                    <th class="sortable-th" id="th-sort-rating" onclick="setDbSort('rating')" title="Sort by Rating" style="cursor:pointer; user-select:none;">
+                      Rating <span class="sort-icon" id="sort-icon-rating" style="opacity:0.4; font-size:0.75rem; margin-left:4px;">↕</span>
+                    </th>
                     <th>Career Pts</th>
-                    <th>Base Price</th>
+                    <th class="sortable-th" id="th-sort-price" onclick="setDbSort('price')" title="Sort by Base Price" style="cursor:pointer; user-select:none;">
+                      Base Price <span class="sort-icon" id="sort-icon-price" style="opacity:0.4; font-size:0.75rem; margin-left:4px;">↕</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody id="db-tbody">
@@ -475,6 +677,26 @@
       </section>
 
     </main>
+  </div>
+
+  <!-- iOS Safari Install Modal -->
+  <div id="ios-install-modal" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(8,11,17,0.85); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:10000; display:none; align-items:center; justify-content:center; padding:1rem;">
+    <div class="panel" style="width:100%; max-width:380px; padding:2rem; text-align:center; border:1px solid rgba(0, 242, 254, 0.35); box-shadow:0 0 30px rgba(0, 242, 254, 0.15);">
+      <div style="font-size:2.5rem; margin-bottom:0.75rem;">📲 🍎</div>
+      <h3 style="font-size:1.3rem; margin-bottom:0.75rem; color:var(--text-primary); font-family:var(--font-display);">Install on iPhone / iPad</h3>
+      <p style="font-size:0.85rem; color:var(--text-secondary); line-height:1.7; margin-bottom:1.5rem; text-align:left;">
+        1. Tap the <strong style="color:var(--primary-neon)">Share</strong> icon <span style="font-size:1.1rem;">⎋</span> in Safari.<br>
+        2. Scroll down and tap <strong style="color:var(--primary-neon)">Add to Home Screen</strong> <span style="font-size:1.1rem;">➕</span>.<br>
+        3. Tap <strong style="color:var(--primary-neon)">Add</strong> to install Football Auction directly onto your home screen!
+      </p>
+      <button class="btn-primary" onclick="closeIOSInstallModal()" style="width:100%;">Got It</button>
+    </div>
+  </div>
+
+  <!-- Offline Status Indicator Banner -->
+  <div id="offline-indicator" style="display:none; position:fixed; bottom:1.25rem; left:1.25rem; z-index:9998; background:rgba(255, 170, 0, 0.95); color:#080b11; font-weight:700; font-size:0.82rem; padding:0.6rem 1rem; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.5); align-items:center; gap:0.5rem;">
+    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#080b11;"></span>
+    Offline Mode — Cached data is active.
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
