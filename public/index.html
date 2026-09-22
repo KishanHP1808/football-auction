@@ -340,8 +340,9 @@
                 <label for="player-pool-select" style="display:block; border-left:4px solid var(--success-neon); padding-left:0.75rem; font-size:1.1rem; font-weight:bold; margin-bottom: 0.75rem;">⚽ Player Pool</label>
                 <select id="player-pool-select" class="form-control" style="background:rgba(255,255,255,0.05); color:var(--text-primary); border:1px solid var(--glass-border); border-radius:8px; padding:0.75rem; width:100%; cursor:pointer; font-size:0.9rem;">
                   <option value="wc2026_elite" style="background:var(--panel-bg); color:#fff;" selected>🏆 Elite World Cup Players (wc2026_players.js — Rating 80+, ~230 players)</option>
-                  <option value="wc2026" style="background:var(--panel-bg); color:#fff;">🌍 All World Cup Players (wc2026_players.js — 1,070+ players)</option>
-                  <option value="special" style="background:var(--panel-bg); color:#fff;">🌟 Global Star Elite Players (players.js — ~115 players)</option>
+                  <option value="wc2026" style="background:var(--panel-bg); color:#fff;">🌍 All World Cup & Global Players (1,100+ players)</option>
+                  <option value="special" style="background:var(--panel-bg); color:#fff;">🌟 Global Star Elite Players (players.js — 135 players)</option>
+                  <option value="india" style="background:var(--panel-bg); color:#fff;">🇮🇳 Indian Football Stars & Legends (ISL & National Squad — 30 players)</option>
                 </select>
               </div>
 
@@ -566,6 +567,12 @@
               style="display:none;background:rgba(0,255,135,0.08);border:1px solid var(--success-neon);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.875rem;color:var(--success-neon);">
             </div>
             <div class="db-filters" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;width:100%;">
+              <select id="db-filter-pool" class="form-control" style="max-width:210px;width:100%;" onchange="onDbPoolChange()" aria-label="Select Player Pool">
+                <option value="all" selected>📚 All Players (1,100+)</option>
+                <option value="india">🇮🇳 Indian Players (30)</option>
+                <option value="special">🌟 Curated Stars (135)</option>
+                <option value="wc2026_elite">🏆 WC Elite 80+ (~230)</option>
+              </select>
               <select id="db-filter-pos" class="form-control" style="max-width:160px;width:100%;">
                 <option value="ALL">All Positions</option>
                 <option value="GK">GK — Goalkeeper</option>
@@ -573,8 +580,14 @@
                 <option value="MF">MF — Midfielder</option>
                 <option value="FW">FW — Forward</option>
               </select>
-              <input type="text" class="form-control" id="db-search" placeholder="Search name, club, country..."
-                style="flex:1;min-width:min(200px, 100%);">
+              <div class="db-search-container" id="db-search-container">
+                <span class="db-search-icon" aria-hidden="true">🔍</span>
+                <input type="text" class="form-control" id="db-search" placeholder="Search name, club, country (e.g. India, Chhetri)..."
+                  autocomplete="off" spellcheck="false" aria-label="Search players by name, club, or country">
+                <button type="button" id="db-search-clear" class="db-search-clear-btn" aria-label="Clear search" title="Clear search (Esc)">
+                  ✕
+                </button>
+              </div>
               <span id="db-count" style="color:var(--text-secondary);font-size:0.9rem;white-space:nowrap;">— players</span>
             </div>
             <div class="db-table-container">

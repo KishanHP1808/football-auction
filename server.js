@@ -252,6 +252,90 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ── Dynamic & Cached Player Image Proxy ──
+const PHOTOS_CACHE_FILE = path.join(__dirname, 'public', 'player_photos.json');
+let playerPhotosCache = {};
+function loadPlayerPhotosCache() {
+  try {
+    if (fs.existsSync(PHOTOS_CACHE_FILE)) {
+      playerPhotosCache = JSON.parse(fs.readFileSync(PHOTOS_CACHE_FILE, 'utf8'));
+    }
+  } catch (e) {
+    playerPhotosCache = {};
+  }
+}
+loadPlayerPhotosCache();
+
+app.get('/api/player-image', async (req, res) => {
+  const rawName = (req.query.name || '').trim();
+  const nat = (req.query.nat || req.query.nationality || '').trim();
+  const club = (req.query.club || '').trim();
+
+  if (!rawName) {
+    return res.redirect('https://ui-avatars.com/api/?name=Player&background=002b49&color=00f2fe&size=150');
+  }
+
+  const cleanName = rawName.replace(/\(GOAT\)|\(goat\)/gi, '').replace(/\(.*?\)/g, '').trim();
+  const cacheKey = cleanName.toLowerCase();
+
+  // Reload cache if empty
+  if (Object.keys(playerPhotosCache).length === 0) {
+    loadPlayerPhotosCache();
+  }
+
+  // Check in-memory cache
+  if (playerPhotosCache[cacheKey]) {
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    return res.redirect(playerPhotosCache[cacheKey]);
+  }
+
+  // Try Wikipedia page summary directly
+  try {
+    const slug = encodeURIComponent(cleanName.replace(/ /g, '_'));
+    const wikiRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`, {
+      headers: { 'User-Agent': 'FootballAuctionApp/1.0 (kishanhp18@gmail.com)' }
+    });
+    if (wikiRes.ok) {
+      const data = await wikiRes.json();
+      if (data.thumbnail && data.thumbnail.source) {
+        playerPhotosCache[cacheKey] = data.thumbnail.source;
+        fs.writeFile(PHOTOS_CACHE_FILE, JSON.stringify(playerPhotosCache, null, 2), () => {});
+        res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+        return res.redirect(data.thumbnail.source);
+      }
+    }
+
+    // Try search if direct slug failed
+    const searchRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanName + ' footballer')}&format=json&utf8=1`, {
+      headers: { 'User-Agent': 'FootballAuctionApp/1.0 (kishanhp18@gmail.com)' }
+    });
+    if (searchRes.ok) {
+      const sData = await searchRes.json();
+      const top = sData.query?.search?.[0];
+      if (top) {
+        const topSlug = encodeURIComponent(top.title.replace(/ /g, '_'));
+        const topRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${topSlug}`, {
+          headers: { 'User-Agent': 'FootballAuctionApp/1.0 (kishanhp18@gmail.com)' }
+        });
+        if (topRes.ok) {
+          const tData = await topRes.json();
+          if (tData.thumbnail && tData.thumbnail.source) {
+            playerPhotosCache[cacheKey] = tData.thumbnail.source;
+            fs.writeFile(PHOTOS_CACHE_FILE, JSON.stringify(playerPhotosCache, null, 2), () => {});
+            res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+            return res.redirect(tData.thumbnail.source);
+          }
+        }
+      }
+    }
+  } catch (err) {}
+
+  // Fallback to high-contrast cyber theme UI Avatar
+  const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=002b49&color=00f2fe&size=200&bold=true`;
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  return res.redirect(fallbackUrl);
+});
+
 app.post('/api/register', async (req, res) => {
   try {
     const rawUsername = req.body.username;

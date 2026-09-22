@@ -283,7 +283,7 @@ async function handleLogin() {
       if (errDiv) errDiv.style.display = 'none';
       if (submitBtn) submitBtn.innerHTML = '<span>✅ Signed In!</span>';
 
-      updateAuthUI(data.username, data.email || '');
+      updateAuthUI(data.username, data.email || '', false);
 
       // Save credentials for auto login on same device
       localStorage.setItem('auction_username', data.username);
@@ -812,7 +812,7 @@ async function handleRegister() {
       const activeEmail = data.email || email;
 
       // Auto sign in user immediately and store in localStorage
-      updateAuthUI(activeUser, activeEmail);
+      updateAuthUI(activeUser, activeEmail, false);
       localStorage.setItem('auction_username', activeUser);
       localStorage.setItem('auction_email', activeEmail);
 
@@ -835,7 +835,24 @@ async function handleRegister() {
     } else {
       const errorMsg = data.error || "Registration failed. Please try again.";
       if (errDiv) {
-        errDiv.textContent = errorMsg;
+        if (data.code === 'EMAIL_EXISTS') {
+          errDiv.innerHTML = `
+            <div style="font-weight:600; margin-bottom:0.4rem;">An account with this email already exists.</div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem;">
+              <button type="button" class="btn-secondary auth-action-pill" onclick="switchAuthTab('login', '${escapeHTML(email)}')">🔑 Sign In with this email</button>
+              <button type="button" class="btn-secondary auth-action-pill" onclick="openForgotPasswordView('${escapeHTML(email)}')">🔐 Reset Password</button>
+            </div>
+          `;
+        } else if (data.code === 'USERNAME_TAKEN') {
+          errDiv.innerHTML = `
+            <div style="font-weight:600; margin-bottom:0.4rem;">The username <strong>${escapeHTML(username)}</strong> is already taken.</div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem;">
+              <button type="button" class="btn-secondary auth-action-pill" onclick="switchAuthTab('login', '${escapeHTML(username)}')">🔑 Sign In as ${escapeHTML(username)}</button>
+            </div>
+          `;
+        } else {
+          errDiv.textContent = errorMsg;
+        }
         errDiv.style.display = 'block';
         triggerShake(errDiv);
       }
@@ -1582,7 +1599,8 @@ function renderAuction() {
         timerAlertText = '<div style="color:var(--warning-neon); font-weight:800; font-size:1rem; text-shadow:0 0 10px rgba(255,234,0,0.4); text-transform:uppercase; margin-top:0.5rem; animation:pulse 0.8s infinite alternate;">⚠️ Going Once!</div>';
       }
 
-      const photoUrl = p.photo || `https://images.football-api.com/players/${p.id}.png`;
+      const fallbackAvatar = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=002b49&color=00f2fe&size=200&bold=true';
+      const photoUrl = p.photo || (`/api/player-image?name=${encodeURIComponent(p.name)}&nat=${encodeURIComponent(p.nationality || '')}&club=${encodeURIComponent(p.club || '')}`);
       const formBadge = p.formStatus || '➖ Steady';
 
       const buyNowPrice = p.buyNowPrice || Math.round(p.basePrice * 2.5);
@@ -1622,7 +1640,7 @@ function renderAuction() {
             <span class="pos">${p.position}</span>
           </div>
           <div class="club-logo">${p.club}</div>
-          <img src="${photoUrl}" class="player-photo-main" alt="${p.name}">
+          <img src="${photoUrl}" class="player-photo-main" alt="${escapeHTML(p.name)}" onerror="this.onerror=null; this.src='${fallbackAvatar}';">
           <div class="player-card-info">
             <div class="name">${p.name}</div>
             <div class="meta" style="display:flex; align-items:center; justify-content:center; gap:0.5rem; margin-bottom:0.4rem;">
@@ -2026,13 +2044,16 @@ function renderNominationResults(results) {
   }
 
   list.innerHTML = results.map(p => {
+    const fallbackAvatar = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=002b49&color=00f2fe&size=60&bold=true';
+    const photoUrl = p.photo || (`/api/player-image?name=${encodeURIComponent(p.name)}&nat=${encodeURIComponent(p.nationality || '')}&club=${encodeURIComponent(p.club || '')}`);
     return `
       <div class="squad-list-item" style="margin-bottom:0.4rem;">
-        <div style="display:flex; align-items:center; gap: 0.5rem;">
+        <div style="display:flex; align-items:center; gap: 0.6rem;">
+          <img src="${photoUrl}" style="width:34px; height:34px; border-radius:50%; object-fit:cover; border:1px solid rgba(0,242,254,0.3); flex-shrink:0;" alt="${escapeHTML(p.name)}" onerror="this.onerror=null; this.src='${fallbackAvatar}';">
           <span class="badge-position ${p.position}" style="font-size:0.7rem; padding:0.1rem 0.3rem">${p.position}</span>
           <div>
-            <div class="name" style="font-size:0.85rem;">${p.name}</div>
-            <div style="font-size:0.7rem; color:var(--text-secondary);">${p.club} &bull; ${p.nationality} &bull; RTG: ${p.rating}</div>
+            <div class="name" style="font-size:0.85rem; font-weight:700;">${escapeHTML(p.name)}</div>
+            <div style="font-size:0.7rem; color:var(--text-secondary);">${escapeHTML(p.club)} &bull; ${escapeHTML(p.nationality)} &bull; RTG: ${p.rating}</div>
           </div>
         </div>
         <button class="btn-primary" onclick="nominatePlayer(${JSON.stringify(p).replace(/"/g, '&quot;')})" ${!isMyTurn ? 'disabled' : ''} style="width:auto; padding: 0.25rem 0.75rem; font-size:0.75rem;">
@@ -2153,11 +2174,12 @@ function renderSquadGrid() {
     grid.innerHTML = `<p style="color:var(--text-muted); font-size:0.75rem; text-align:center; padding:1.5rem 0; grid-column: 1/-1;">No reserve players (all assigned to pitch)</p>`;
   } else {
     grid.innerHTML = unassigned.map(p => {
-      const photoUrl = p.photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=random&size=80');
+      const fallbackAvatar = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=002b49&color=00f2fe&size=80&bold=true';
+      const photoUrl = p.photo || (`/api/player-image?name=${encodeURIComponent(p.name)}&nat=${encodeURIComponent(p.nationality || '')}&club=${encodeURIComponent(p.club || '')}`);
       return `
         <div class="squad-list-item" style="flex-direction:column; padding:0.4rem; align-items:center; text-align:center;">
-          <img src="${photoUrl}" class="player-photo-db" style="width:30px; height:30px; margin-bottom:0.25rem;" alt="${p.name}">
-          <div style="font-weight:bold; font-size:0.75rem; overflow:hidden; text-overflow:ellipsis; width:100%; white-space:nowrap;">${p.name.split(' ').pop()}</div>
+          <img src="${photoUrl}" class="player-photo-db" style="width:34px; height:34px; border-radius:50%; object-fit:cover; margin-bottom:0.25rem; border:1px solid rgba(0,242,254,0.3);" alt="${escapeHTML(p.name)}" onerror="this.onerror=null; this.src='${fallbackAvatar}';">
+          <div style="font-weight:bold; font-size:0.75rem; overflow:hidden; text-overflow:ellipsis; width:100%; white-space:nowrap;">${escapeHTML(p.name.split(' ').pop())}</div>
           <div style="font-size:0.65rem; color:var(--success-neon);">$${p.boughtFor}M &bull; ${p.position}</div>
         </div>
       `;
@@ -2170,18 +2192,23 @@ function renderSquadGrid() {
     if (user.squad.length === 0) {
       listContainer.innerHTML = `<p style="color:var(--text-muted);padding:1rem;text-align:center">No players drafted yet.</p>`;
     } else {
-      listContainer.innerHTML = user.squad.map(p => `
-        <div class="squad-list-item">
+      listContainer.innerHTML = user.squad.map(p => {
+        const fallbackAvatar = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=002b49&color=00f2fe&size=60&bold=true';
+        const photoUrl = p.photo || (`/api/player-image?name=${encodeURIComponent(p.name)}&nat=${encodeURIComponent(p.nationality || '')}&club=${encodeURIComponent(p.club || '')}`);
+        return `
+        <div class="squad-list-item" style="display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0.6rem;">
           <div style="display:flex; align-items:center; gap:0.5rem;">
+            <img src="${photoUrl}" style="width:30px; height:30px; border-radius:50%; object-fit:cover; border:1px solid rgba(0,242,254,0.3); flex-shrink:0;" alt="${escapeHTML(p.name)}" onerror="this.onerror=null; this.src='${fallbackAvatar}';">
             <span class="badge-position ${p.position}">${p.position}</span>
             <div>
-              <span class="name">${p.name}</span>
-              <span style="font-size:0.7rem; color:var(--text-muted); display:block;">${p.club} &bull; Rating: ${p.rating}</span>
+              <span class="name" style="font-size:0.85rem; font-weight:700;">${escapeHTML(p.name)}</span>
+              <span style="font-size:0.7rem; color:var(--text-muted); display:block;">${escapeHTML(p.club)} &bull; Rating: ${p.rating}</span>
             </div>
           </div>
-          <span class="price">$${p.boughtFor}M</span>
+          <span class="price" style="font-weight:800; color:var(--success-neon);">$${p.boughtFor}M</span>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
   }
 }
@@ -2516,10 +2543,96 @@ function updateSortHeadersUI() {
   });
 }
 
-function initDatabase() {
-  const mode = getActivePoolMode();
-  currentDB = getPlayersDatabase(mode);
+function onDbPoolChange() {
+  const poolSelect = document.getElementById('db-filter-pool');
+  const val = poolSelect ? poolSelect.value : 'all';
+  if (val === 'india') {
+    currentDB = getPlayersDatabase('india');
+  } else if (val === 'special') {
+    currentDB = getPlayersDatabase('special');
+  } else if (val === 'wc2026_elite') {
+    currentDB = getPlayersDatabase('wc2026_elite');
+  } else {
+    currentDB = getPlayersDatabase('wc2026');
+  }
   renderDatabase();
+}
+window.onDbPoolChange = onDbPoolChange;
+
+function initDatabase() {
+  initDbSearchControls();
+  const poolSelect = document.getElementById('db-filter-pool');
+  if (poolSelect && poolSelect.value === 'india') {
+    currentDB = getPlayersDatabase('india');
+  } else if (poolSelect && poolSelect.value === 'special') {
+    currentDB = getPlayersDatabase('special');
+  } else if (poolSelect && poolSelect.value === 'wc2026_elite') {
+    currentDB = getPlayersDatabase('wc2026_elite');
+  } else {
+    currentDB = getPlayersDatabase('wc2026');
+  }
+  renderDatabase();
+}
+
+function clearDbSearch() {
+  const searchInput = $('#db-search');
+  const clearBtn = $('#db-search-clear');
+  if (searchInput) {
+    searchInput.value = '';
+    searchInput.focus();
+  }
+  if (clearBtn) {
+    clearBtn.style.display = 'none';
+  }
+  renderDatabase();
+}
+
+function initDbSearchControls() {
+  const searchInput = $('#db-search');
+  const clearBtn = $('#db-search-clear');
+  const posFilter = $('#db-filter-pos');
+
+  if (searchInput && !searchInput.dataset.searchInit) {
+    searchInput.dataset.searchInit = 'true';
+
+    // Real-time filtering as the user types
+    searchInput.addEventListener('input', () => {
+      if (clearBtn) {
+        clearBtn.style.display = searchInput.value.trim().length > 0 ? 'flex' : 'none';
+      }
+      renderDatabase();
+    });
+
+    // Pressing Escape clears the search instantly
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        clearDbSearch();
+      }
+    });
+
+    // Native search event / paste / cut support
+    searchInput.addEventListener('search', () => {
+      if (clearBtn) {
+        clearBtn.style.display = searchInput.value.trim().length > 0 ? 'flex' : 'none';
+      }
+      renderDatabase();
+    });
+  }
+
+  if (clearBtn && !clearBtn.dataset.searchInit) {
+    clearBtn.dataset.searchInit = 'true';
+    clearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearDbSearch();
+    });
+  }
+
+  if (posFilter && !posFilter.dataset.filterInit) {
+    posFilter.dataset.filterInit = 'true';
+    posFilter.addEventListener('change', renderDatabase);
+  }
 }
 
 function renderDatabase() {
@@ -2547,14 +2660,29 @@ function renderDatabase() {
   }
 
   const posFilter = $('#db-filter-pos') ? $('#db-filter-pos').value : 'ALL';
-  const searchStr = $('#db-search') ? $('#db-search').value.toLowerCase() : '';
+  const searchInput = $('#db-search');
+  const clearBtn = $('#db-search-clear');
+  const rawSearch = searchInput ? searchInput.value.trim() : '';
+  const searchStr = rawSearch.toLowerCase();
+
+  // Ensure clear button visibility matches current input text
+  if (clearBtn) {
+    clearBtn.style.display = rawSearch.length > 0 ? 'flex' : 'none';
+  }
+
+  const searchTokens = searchStr.split(/\s+/).filter(Boolean);
 
   let filtered = currentDB.filter(p => {
     if (posFilter !== 'ALL' && p.position !== posFilter) return false;
-    if (searchStr && !p.name.toLowerCase().includes(searchStr) &&
-      !p.club.toLowerCase().includes(searchStr) &&
-      !p.nationality.toLowerCase().includes(searchStr)) {
-      return false;
+    if (searchTokens.length > 0) {
+      const pName = (p.name || '').toLowerCase();
+      const pClub = (p.club || '').toLowerCase();
+      const pNat = (p.nationality || '').toLowerCase();
+      const pPos = (p.position || '').toLowerCase();
+      const matchesAllTokens = searchTokens.every(tok =>
+        pName.includes(tok) || pClub.includes(tok) || pNat.includes(tok) || pPos === tok
+      );
+      if (!matchesAllTokens) return false;
     }
     return true;
   });
@@ -2578,30 +2706,51 @@ function renderDatabase() {
     });
   }
 
-  count.textContent = `${filtered.length} players`;
+  count.textContent = (searchTokens.length > 0 || posFilter !== 'ALL')
+    ? `${filtered.length} of ${currentDB.length} players`
+    : `${filtered.length} players`;
 
-  tbody.innerHTML = filtered.map(p => {
-    const photoUrl = p.photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=random&size=50');
-    const careerPts = getPlayerCareerFantasyPoints(p);
-    return `
-    <tr>
-      <td style="width: 50px; text-align: center;">
-        <img src="${photoUrl}" class="player-photo-db" alt="${p.name}">
-      </td>
-      <td><span class="badge-position ${p.position}">${p.position}</span></td>
-      <td style="font-weight:bold">${p.name}</td>
-      <td>${p.club}</td>
-      <td>${p.nationality}</td>
-      <td>${p.rating}</td>
-      <td style="color:var(--secondary-neon); font-weight:bold;">${careerPts}/1000</td>
-      <td style="color:var(--success-neon); font-weight:bold">$${p.basePrice}M</td>
-    </tr>
+  if (filtered.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
+          <div style="font-size: 1.6rem; margin-bottom: 0.5rem;">🔍</div>
+          <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.35rem; font-size: 1rem;">No players found</div>
+          <div style="font-size: 0.85rem; margin-bottom: 0.85rem; color: var(--text-secondary);">
+            No players match &ldquo;<span style="color:var(--primary-neon); font-weight:600;">${escapeHTML(rawSearch)}</span>&rdquo;${posFilter !== 'ALL' ? ` in position <strong>${posFilter}</strong>` : ''}.
+          </div>
+          <button type="button" class="btn-secondary" onclick="clearDbSearch()" style="width: auto; padding: 0.4rem 1rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.4rem; margin: 0 auto; cursor: pointer;">
+            ✕ Clear Search
+          </button>
+        </td>
+      </tr>
     `;
-  }).join('');
+  } else {
+    tbody.innerHTML = filtered.map(p => {
+      const fallbackAvatar = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=002b49&color=00f2fe&size=100&bold=true';
+      const photoUrl = p.photo || (`/api/player-image?name=${encodeURIComponent(p.name)}&nat=${encodeURIComponent(p.nationality || '')}&club=${encodeURIComponent(p.club || '')}`);
+      const careerPts = getPlayerCareerFantasyPoints(p);
+      const rowId = 'db-row-' + String(p.id || p.name).replace(/[^a-zA-Z0-9_-]/g, '_');
+      return `
+      <tr id="${rowId}" class="db-player-row">
+        <td style="width: 50px; text-align: center;">
+          <img src="${photoUrl}" class="player-photo-db" alt="${escapeHTML(p.name)}" onerror="this.onerror=null; this.src='${fallbackAvatar}';">
+        </td>
+        <td><span class="badge-position ${p.position}">${p.position}</span></td>
+        <td style="font-weight:bold">${escapeHTML(p.name)}</td>
+        <td>${escapeHTML(p.club)}</td>
+        <td>${escapeHTML(p.nationality)}</td>
+        <td><strong style="color:var(--primary-neon); font-size: 0.95rem;">${p.rating}</strong></td>
+        <td style="color:var(--secondary-neon); font-weight:bold;">${careerPts}/1000</td>
+        <td style="color:var(--success-neon); font-weight:bold">$${p.basePrice}M</td>
+      </tr>
+      `;
+    }).join('');
+  }
 }
 
-$('#db-filter-pos')?.addEventListener('change', renderDatabase);
-$('#db-search')?.addEventListener('input', renderDatabase);
+// Ensure controls are bound immediately if DOM is already parsed
+initDbSearchControls();
 
 function addCustomPlayer() {
   const isAdmin = currentUser && (currentUser.toLowerCase() === 'kishanhp1808' || currentEmail.toLowerCase() === 'kishanhp18@gmail.com');
